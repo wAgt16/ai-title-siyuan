@@ -12,7 +12,13 @@
  */
 import {Dialog, Menu, showMessage} from "siyuan";
 import {listModels, testConnection} from "./api/client";
-import {activeModelName, providerModelNames, providerProtocol, readSiyuanProviders} from "./api/siyuan-provider";
+import {
+    activeModelName,
+    followDefaultTarget,
+    providerModelNames,
+    providerProtocol,
+    readSiyuanProviders,
+} from "./api/siyuan-provider";
 import {
     AUTO_APPLY_ALWAYS,
     AUTO_APPLY_NEVER,
@@ -22,6 +28,7 @@ import {
     hasProviderConfig,
     hasProviderEndpoint,
     isAdapterProtocol,
+    isFollowDefaultProvider,
     MEDIA_DROP,
     MEDIA_OPTIONS,
     MEDIA_PLACEHOLDER,
@@ -31,10 +38,11 @@ import {
     PROTOCOL_RESPONSES,
     PROTOCOL_SIYUAN_PROVIDER,
     PROTOCOLS,
+    PROVIDER_FOLLOW_AGENT,
+    PROVIDER_FOLLOW_EDITOR,
     REASONING_DEFAULT,
     REASONING_EFFORT_OFF,
     REASONING_OPTIONS,
-    selectedModel,
     TOC_ALWAYS,
     TOC_NEVER,
     TOC_OPTIONS,
@@ -404,6 +412,27 @@ function buildApiGroup(root: HTMLElement, t: T, settings: PluginSettings): Sync 
     /** 当前是不是「使用思源设置中供应商」模式（#27）。 */
     const siyuanMode = (): boolean => api.protocol === PROTOCOL_SIYUAN_PROVIDER;
 
+    /**
+     * 当前是不是「跟随编辑器默认」或「跟随智能体默认」（#28）。这两档下模型名由思源决定：
+     * 插件这边既不能填、也不能从列表里挑。
+     */
+    const following = (): boolean => siyuanMode() && isFollowDefaultProvider(api.siyuanProvider);
+
+    /**
+     * 模型输入框该显示的名字。
+     * 跟随默认时显示思源实际会用的那个模型，其余情况显示存下来的值。
+     */
+    const displayedModel = (): string => {
+        if (!siyuanMode()) {
+            return api.model;
+        }
+        return following() ? followDefaultTarget(api.siyuanProvider)?.model ?? "" : api.siyuanModel;
+    };
+
+    /** 跟随默认却解析不出模型时的占位文案：编辑器与智能体在思源里是两处设置，分开说。 */
+    const followPlaceholder = (): string =>
+        api.siyuanProvider.trim() === PROVIDER_FOLLOW_AGENT ? t("modelFollowEmptyAgent") : t("modelFollowEmptyEditor");
+
     /** 配置不全时的提示：两种模式缺的东西不是一回事。 */
     const missingConfigMessage = (): string => siyuanMode() ? t("testNoConfigProvider") : t("testNoConfig");
 
@@ -448,7 +477,7 @@ function buildApiGroup(root: HTMLElement, t: T, settings: PluginSettings): Sync 
         }
     });
     syncs.push(() => {
-        modelInput.value = selectedModel(api);
+        modelInput.value = displayedModel();
     });
 
     // 「使用思源设置中供应商」下唯一要在这里选的东西：插件只存这个 id，
@@ -456,13 +485,17 @@ function buildApiGroup(root: HTMLElement, t: T, settings: PluginSettings): Sync 
     const provider = select();
     provider.addEventListener("change", () => {
         api.siyuanProvider = provider.value;
-        const chosen = readSiyuanProviders().find((item) => item.id === provider.value);
-        if (!chosen) {
-            return;
+        // 跟随默认时模型名也由思源决定，这里不写 siyuanModel（#28）。
+        // 具体供应商则要跟着换模型：模型名只属于某个供应商，留着上一个的名字请求必然 404
+        if (!following()) {
+            const chosen = readSiyuanProviders().find((item) => item.id === provider.value);
+            if (chosen) {
+                setModel(activeModelName(chosen));
+                availableModels = providerModelNames(chosen);
+            }
         }
-        // 模型名只属于某个供应商：换了供应商还留着上一个的名字，请求必然 404
-        setModel(activeModelName(chosen));
-        availableModels = providerModelNames(chosen);
+        // 整行该显示的换一批：跟随默认时模型名要变成只读
+        refresh();
     });
     const providerRow = rowItem(items, t("provider"), t("providerDesc"), provider);
 
@@ -581,18 +614,28 @@ function buildApiGroup(root: HTMLElement, t: T, settings: PluginSettings): Sync 
      * 「使用思源设置中供应商」下 Base URL、API Key、自定义请求头与「从思源设置获取」
      * 都由思源那边接管了：在这里填只会让人以为生效了，导入更是会当场把模式切成自定义，
      * 所以整行隐藏；供应商下拉反过来只在该模式下出现。
+     *
+     * 「跟随编辑器/智能体默认」（#28）再多收两处：模型名由思源决定，
+     * 输入框改成只读并显示思源实际会用的那个；「获取模型列表」也就没有意义了。
      */
     function refresh(): void {
         fillProviderOptions(provider, api.siyuanProvider, t);
         const siyuan = siyuanMode();
+        const follow = following();
         baseURLRow.classList.toggle("fn__none", siyuan);
         apiKeyRow.classList.toggle("fn__none", siyuan);
         customHeadersRow.classList.toggle("fn__none", siyuan);
         importRow.classList.toggle("fn__none", siyuan);
         providerRow.classList.toggle("fn__none", !siyuan);
+        modelInput.disabled = follow;
+        modelInput.placeholder = follow ? followPlaceholder() : t("modelPlaceholder");
+        // 这一档没有可挑的模型，拉一份列表出来只会让人以为能改
+        fetchButton.classList.toggle("fn__none", follow);
         // 模型名跟着模式换：两种模式各存各的，切换时输入框要显示对应那一个
-        modelInput.value = selectedModel(api);
-        if (siyuan) {
+        modelInput.value = displayedModel();
+        if (follow) {
+            availableModels = [];
+        } else if (siyuan) {
             // 模型清单直接取思源里配好的那份：这个模式下模型本来就属于某个供应商
             const chosen = readSiyuanProviders().find((item) => item.id === api.siyuanProvider);
             availableModels = chosen ? providerModelNames(chosen) : [];
@@ -690,6 +733,9 @@ function protocolName(protocol: string, t: T): string {
  *
  * 每次重刷都整体重建：思源那边刚加了或删了供应商时，面板里留着上一次的列表，
  * 只会让人选到一个已经不存在的 id。
+ *
+ * 紧接着占位项的是两条「跟随默认」（#28）：「跟随编辑器默认」用思源里编辑器 AI 的
+ * 默认模型，「跟随智能体默认」用智能体的。两者都不是供应商 id，所以排在具体供应商之前。
  */
 function fillProviderOptions(node: HTMLSelectElement, selected: string, t: T): void {
     node.textContent = "";
@@ -697,6 +743,16 @@ function fillProviderOptions(node: HTMLSelectElement, selected: string, t: T): v
     placeholder.value = "";
     placeholder.textContent = t("providerPlaceholder");
     node.append(placeholder);
+
+    for (const [value, label] of [
+        [PROVIDER_FOLLOW_EDITOR, t("providerFollowEditor")],
+        [PROVIDER_FOLLOW_AGENT, t("providerFollowAgent")],
+    ] as const) {
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = label;
+        node.append(option);
+    }
 
     const providers = readSiyuanProviders();
     for (const provider of providers) {
@@ -711,7 +767,8 @@ function fillProviderOptions(node: HTMLSelectElement, selected: string, t: T): v
     }
     // 思源那边删掉的供应商原样留在下拉里：否则界面显示成没选，配置里却还留着旧 id，
     // 报错时用户看到的名字在界面上根本找不到
-    if (selected !== "" && !providers.some((provider) => provider.id === selected)) {
+    if (selected !== "" && !isFollowDefaultProvider(selected) &&
+        !providers.some((provider) => provider.id === selected)) {
         const missing = document.createElement("option");
         missing.value = selected;
         missing.textContent = selected;

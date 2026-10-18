@@ -15,6 +15,8 @@
   "provider": "供应商",
   "providerDesc": "协议、地址、密钥与请求头都取自思源里选中的这条供应商；供应商与模型名每台设备各选一次。列表为空时先去思源设置里添加",
   "providerPlaceholder": "请选择供应商",
+  "providerFollowEditor": "跟随编辑器默认",
+  "providerFollowAgent": "跟随智能体默认",
 
   "baseUrl": "Base URL",
   "baseUrlDesc": "按供应商文档填写并带上版本段，如 https://api.openai.com/v1。Messages 协议填到 /v1 即可，插件自己补 /messages",
@@ -33,6 +35,8 @@
   "fetchModels": "获取模型列表",
   "fetchModelsLoading": "获取中…",
   "modelPlaceholder": "如 gpt-4o-mini",
+  "modelFollowEmptyEditor": "思源里编辑器 AI 还没有默认模型",
+  "modelFollowEmptyAgent": "思源里智能体还没有默认模型",
   "modelSearch": "搜索模型…",
   "modelEmpty": "没有匹配的模型",
 

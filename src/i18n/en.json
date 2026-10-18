@@ -15,6 +15,8 @@
   "provider": "Provider",
   "providerDesc": "Protocol, base URL, API key and headers come from the provider selected in SiYuan; the provider and model are picked once per device. Add one in SiYuan first if the list is empty",
   "providerPlaceholder": "Pick a provider",
+  "providerFollowEditor": "Follow the editor default",
+  "providerFollowAgent": "Follow the agent default",
 
   "baseUrl": "Base URL",
   "baseUrlDesc": "Include the version segment your provider documents, e.g. https://api.openai.com/v1. For Messages, stop at /v1 — the plugin appends /messages itself",
@@ -33,6 +35,8 @@
   "fetchModels": "Fetch models",
   "fetchModelsLoading": "Fetching…",
   "modelPlaceholder": "e.g. gpt-4o-mini",
+  "modelFollowEmptyEditor": "No default model is set for the editor AI in SiYuan",
+  "modelFollowEmptyAgent": "No default model is set for the agent in SiYuan",
   "modelSearch": "Search models…",
   "modelEmpty": "No matching model",
 

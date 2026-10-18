@@ -5,12 +5,15 @@ import {
     hasProviderConfig,
     hasProviderEndpoint,
     isAdapterProtocol,
+    isFollowDefaultProvider,
     isProtocol,
     mergeSettings,
     PROTOCOL_ANTHROPIC_MESSAGES,
     PROTOCOL_CHAT_COMPLETIONS,
     PROTOCOL_SIYUAN_PROVIDER,
     PROTOCOLS,
+    PROVIDER_FOLLOW_AGENT,
+    PROVIDER_FOLLOW_EDITOR,
     REASONING_DEFAULT,
     REASONING_EFFORT_OFF,
     selectedModel,
@@ -156,5 +159,27 @@ describe("hasProviderConfig（#27 两种模式要填的东西不同）", () => {
         };
         expect(selectedModel(api)).toBe("gpt-5.1");
         expect(hasProviderConfig({...api, model: ""})).toBe(false);
+    });
+
+    it("两条「跟随默认」都没有可填的模型名，选了就算配置齐全（#28）", () => {
+        for (const provider of [PROVIDER_FOLLOW_EDITOR, PROVIDER_FOLLOW_AGENT]) {
+            const api: ApiSettings = {
+                ...DEFAULT_SETTINGS.api,
+                protocol: PROTOCOL_SIYUAN_PROVIDER,
+                siyuanProvider: provider,
+            };
+            expect(hasProviderConfig(api)).toBe(true);
+            expect(hasProviderEndpoint(api)).toBe(true);
+            // 这一档不写模型名：真正用哪个由思源决定，插件这边没有值可显示
+            expect(selectedModel(api)).toBe("");
+            // 手改的配置里带空格同样认得
+            expect(hasProviderConfig({...api, siyuanProvider: ` ${provider} `})).toBe(true);
+        }
+        // 空值与具体供应商仍然要求模型名
+        expect(hasProviderConfig({...DEFAULT_SETTINGS.api, protocol: PROTOCOL_SIYUAN_PROVIDER})).toBe(false);
+        // 只认这两个确切取值，其余一律按供应商 id 处理
+        expect(isFollowDefaultProvider("follow")).toBe(false);
+        expect(isFollowDefaultProvider("")).toBe(false);
+        expect(isFollowDefaultProvider("20260913135841-1u2j84c")).toBe(false);
     });
 });
