@@ -9,6 +9,7 @@
   "protocolChatCompletions": "Chat Completions API",
   "protocolResponses": "Responses API",
   "protocolAnthropicMessages": "Anthropic Messages API",
+  "protocolGeminiInteractions": "Gemini Interactions API",
   "protocolSiyuanProvider": "使用思源设置中供应商",
   "protocolDesc": "按供应商实际提供的接口选择，导入思源配置时会跟着供应商的协议走。这一项每台设备各存一份，不参与数据同步",
 
@@ -45,7 +46,7 @@
   "importDialogTitle": "导入供应商配置",
   "importApply": "导入",
   "importUnsupported": "协议不支持",
-  "importUnsupportedHint": "该供应商使用 {protocol}，插件只实现了 Chat Completions、Responses 与 Anthropic Messages，请求格式对不上",
+  "importUnsupportedHint": "该供应商使用 {protocol}，插件只实现了 Chat Completions、Responses、Anthropic Messages 与 Gemini Interactions，请求格式对不上",
   "importEmpty": "思源设置里没有已填写 API Key 或鉴权请求头的 AI 供应商。",
 
   "reasoningEffort": "思考强度",

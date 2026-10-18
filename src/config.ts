@@ -105,9 +105,12 @@ export const TOC_OPTIONS = [TOC_NEVER, TOC_TRUNCATED, TOC_ALWAYS] as const;
 export type TocMode = (typeof TOC_OPTIONS)[number];
 
 /**
- * 生成协议，取值与思源自己的 AI 供应商配置一致（app/src/config/tabs/ai/aiProviderUi.ts）。
+ * 生成协议。
  *
- * 三者的请求地址、请求体结构和响应结构互不兼容，供应商只支持其中某一种，
+ * 前三个取值与思源自己的 AI 供应商配置一致（app/src/config/tabs/ai/aiProviderUi.ts）；
+ * gemini-interactions 是插件自己加的那一种，思源那边还只有前三个。
+ *
+ * 每个协议的请求地址、请求体结构和响应结构互不兼容，供应商只支持其中某一种，
  * 所以协议是接口配置里的第一等字段，不是能猜出来的东西 —— 从思源导入时会跟着走。
  *
  * 空串与未知取值一律折算成 Chat Completions：思源那边的协议字段缺省时也是这个语义
@@ -116,6 +119,14 @@ export type TocMode = (typeof TOC_OPTIONS)[number];
 export const PROTOCOL_CHAT_COMPLETIONS = "openai";
 export const PROTOCOL_RESPONSES = "openai-responses";
 export const PROTOCOL_ANTHROPIC_MESSAGES = "anthropic-messages";
+/**
+ * Gemini 的 Interactions 接口（#30）。
+ *
+ * 自 2026 年 6 月起它是 Google 推荐的新接口，老的 generateContent 只作为 legacy 保留。
+ * 请求体与响应体都换成 Interaction 资源那套结构，与 OpenAI 兼容端点没有共同字段，
+ * 所以只能单独一个协议。
+ */
+export const PROTOCOL_GEMINI_INTERACTIONS = "gemini-interactions";
 
 /**
  * 「使用思源设置中供应商」（#27）：协议、Base URL、API Key 与请求头全部现取自思源的
@@ -131,9 +142,10 @@ export const ADAPTER_PROTOCOLS = [
     PROTOCOL_CHAT_COMPLETIONS,
     PROTOCOL_RESPONSES,
     PROTOCOL_ANTHROPIC_MESSAGES,
+    PROTOCOL_GEMINI_INTERACTIONS,
 ] as const;
 
-/** 设置页协议下拉的全部取值：先列默认的配置来源，再列三个具体协议。 */
+/** 设置页协议下拉的全部取值：先列默认的配置来源，再列四个具体协议。 */
 export const PROTOCOLS = [PROTOCOL_SIYUAN_PROVIDER, ...ADAPTER_PROTOCOLS] as const;
 
 export type AdapterProtocol = (typeof ADAPTER_PROTOCOLS)[number];

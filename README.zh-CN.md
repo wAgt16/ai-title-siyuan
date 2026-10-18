@@ -6,7 +6,7 @@
 
 # AI标题生成
 
-一个替你给笔记起名的思源插件。选中一篇或多篇笔记，插件按你配置的接口（Chat Completions、Responses API 或 Anthropic Messages）请求标题，然后直接写回，或者先交给你确认。
+一个替你给笔记起名的思源插件。选中一篇或多篇笔记，插件按你配置的接口（Chat Completions、Responses API、Anthropic Messages 或 Gemini Interactions）请求标题，然后直接写回，或者先交给你确认。
 
 ## 为什么做这个
 
@@ -19,7 +19,7 @@
 - **批量生成。** 在文档树中选中多篇笔记，一次完成。笔记会自动切分批次，批次之间并发执行。
 - **写回前先确认。** 每个标题都可编辑：取消不想要的，改动任意一条，或单独重新生成一行。
 - **风格自己定，契约不放手。** 系统提示词和用户提示词固定不可改——它们承载插件解析返回值所依赖的 JSON 契约。额外要求写进 `{{system}}`、`{{user}}` 追加位；`{{content}}`、`{{language}}`、`{{style}}` 每次请求时填充。
-- **三种协议。** Chat Completions、Responses API 与 Anthropic Messages。可对接任意兼容服务，也可直接导入思源里已配置好的供应商——协议跟着一起导入。
+- **四种协议。** Chat Completions、Responses API、Anthropic Messages 与 Gemini Interactions。可对接任意兼容服务，也可直接导入思源里已配置好的供应商——协议跟着一起导入。
 - **直接使用思源里配好的供应商。** 新装的默认选项：协议、地址、密钥与请求头都用思源里那一份，插件只记下协议、供应商与模型名（每台设备各存一份，不参与数据同步），思源那边改了就跟着变；**跟随编辑器默认** 与 **跟随智能体默认** 则由思源决定模型名，两者各自独立。
 - **可调思考强度。** 从「禁用」一直到最高档，按协议换算成 `reasoning_effort`、`reasoning.effort` 或 Anthropic 的 `thinking`，也可以完全不发送、交由供应商决定。
 - **自定义请求头。** 按 JSON 填一组额外的请求头，取值里可以引用思源的变量（`{{vars.名字}}`）与密钥（`{{secrets.名字}}`），每次请求前替换 —— opencode 这类要求会话头的供应商靠它接入。从思源导入供应商时请求头一并带过来。
@@ -29,7 +29,7 @@
 ## 环境要求
 
 - 思源 3.8.3 或更高版本。
-- 一个支持 Chat Completions、Responses API 或 Anthropic Messages 的接口及其 Base URL 与 API Key，**或者**思源里已经配好的 AI 供应商（新装默认走这条）。
+- 一个支持 Chat Completions、Responses API、Anthropic Messages 或 Gemini Interactions 的接口及其 Base URL 与 API Key，**或者**思源里已经配好的 AI 供应商（新装默认走这条）。
 
 ## 安装
 
@@ -51,9 +51,9 @@ npm run build
 
 打开 **设置 → 集市 → 已下载 → AI标题生成 → 设置**。
 
-1. **协议** —— 默认 **使用思源设置中供应商**：协议、地址、密钥与请求头都按思源里选中的那条来。想自己填这些值，改成下面三个具体协议之一。这一项每台设备各存一份，不参与数据同步。
+1. **协议** —— 默认 **使用思源设置中供应商**：协议、地址、密钥与请求头都按思源里选中的那条来。想自己填这些值，改成下面四个具体协议之一。这一项每台设备各存一份，不参与数据同步。
 2. **供应商** —— 只在上面选了 **使用思源设置中供应商** 时出现，从思源已配置的供应商里挑一个；列表为空说明思源那边还没配过。也可以选 **跟随编辑器默认** 或 **跟随智能体默认**：前者用思源里编辑器 AI 的默认模型，后者用智能体的默认模型，两者不会互相代替；协议、地址与模型名都取该模型所属的供应商，模型名不能在插件里改。这一项与模型名每台设备各存一份。
-3. **Base URL** —— 自定义协议下按你所用供应商的文档带上版本段。Messages 协议填到 `/v1` 即可，插件自己补 `/messages`。
+3. **Base URL** —— 自定义协议下按你所用供应商的文档带上版本段。Messages 协议填到 `/v1` 即可，插件自己补 `/messages`；Interactions 协议填到 `/v1beta` 即可，插件自己补 `/interactions`。
 4. **API Key** —— 接口无需密钥时留空；保存前会用思源的数据仓库密钥加密，见下文。
 5. **模型名称** —— 可直接输入，点击 **获取模型列表** 从供应商端点选择，或用 **从思源设置获取** 复制你已配置好的供应商。选中思源供应商时，点输入框会列出该供应商登记的模型。
 6. 点击 **测试连接**。只要有回复就说明配置可用。
@@ -62,9 +62,9 @@ npm run build
 
 | 分组 | 设置项 | 默认值 | 说明 |
 | --- | --- | --- | --- |
-| 接口 | 协议 | 使用思源设置中供应商 | 协议、地址、密钥与请求头都取自思源里选中的供应商。也可以改成三个具体协议之一，自己填下面几项。每台设备各存一份，不参与数据同步。 |
+| 接口 | 协议 | 使用思源设置中供应商 | 协议、地址、密钥与请求头都取自思源里选中的供应商。也可以改成四个具体协议之一，自己填下面几项。每台设备各存一份，不参与数据同步。 |
 | 接口 | 供应商 | *空* | 只在协议为 **使用思源设置中供应商** 时出现。从思源已配置的供应商里选一个；换供应商时模型名会跟着换成该供应商启用中的那个。选 **跟随编辑器默认** 或 **跟随智能体默认** 则分别使用思源里编辑器 AI、智能体的默认模型，模型名随即变成只读，两者互不代替。这一项与模型名每台设备各存一份。 |
-| 接口 | 思考强度 | 默认 | Chat Completions 以 `reasoning_effort` 发送，Responses 以 `reasoning.effort` 发送，Messages 换算成 `thinking`。**默认**不发送该字段、交给供应商决定；**禁用**明确要求模型不推理。严格的接口会直接返回 400 拒绝这个参数。 |
+| 接口 | 思考强度 | 默认 | Chat Completions 以 `reasoning_effort` 发送，Responses 以 `reasoning.effort` 发送，Messages 换算成 `thinking`，Interactions 换算成 `generation_config.thinking_level`。**默认**不发送该字段、交给供应商决定；**禁用**明确要求模型不推理。严格的接口会直接返回 400 拒绝这个参数。 |
 | 接口 | 温度 | `1.0` | 取值 `0`–`2`，越低越稳定。Messages 只接受 `0`–`1`，且开启思考时不发送。 |
 | 接口 | Top P | `0.8` | 留空则不发送该参数。Messages 开启思考时不发送。 |
 | 接口 | Top K | *空* | 留空则不发送。OpenAI 官方接口对未识别参数直接返回 400，Responses 协议没有这个字段，仅在确认供应商支持时才填写；Messages 接受整数。 |
@@ -100,7 +100,7 @@ npm run build
 - 供应商配的请求头一并使用，里面的 `{{vars.名字}}` 与 `{{secrets.名字}}` 与插件自定义请求头按同一套规则解析。
 - 也可以选 **跟随编辑器默认** 或 **跟随智能体默认**：插件连供应商与模型名都不存，每次请求前分别取思源里编辑器 AI、智能体的默认模型；某一处没设时该选项直接报错，不会改用另一处的模型。模型名在插件里不可改，思源那边换了模型这里就跟着换。
 - 温度、思考强度、最大输出 token 等参数仍然在本插件设置。
-- 这个模式下 **Base URL**、**API Key**、**自定义请求头** 与 **从思源设置获取** 四行不显示，它们由思源接管。想把某一套配置固定成插件自己的副本，把 **协议** 改成具体的三个协议之一，再用 **从思源设置获取** 导入一次。
+- 这个模式下 **Base URL**、**API Key**、**自定义请求头** 与 **从思源设置获取** 四行不显示，它们由思源接管。想把某一套配置固定成插件自己的副本，把 **协议** 改成具体的四个协议之一，再用 **从思源设置获取** 导入一次。
 
 ### 自定义请求头
 
@@ -143,7 +143,9 @@ npm run build
 
 ### 思考强度
 
-**思考强度** 在各协议里去的地方不同：Chat Completions 是 `reasoning_effort`，Responses 是 `reasoning.effort`，Anthropic Messages 则换算成 `thinking`。**默认**不发送该字段、由供应商决定；**禁用**明确要求不推理；`low` 到 `max` 依次要求更多推理。
+**思考强度** 在各协议里去的地方不同：Chat Completions 是 `reasoning_effort`，Responses 是 `reasoning.effort`，Anthropic Messages 则换算成 `thinking`，Gemini Interactions 换算成 `generation_config.thinking_level`。**默认**不发送该字段、由供应商决定；**禁用**明确要求不推理；`low` 到 `max` 依次要求更多推理。
+
+Interactions 协议只有 `minimal`、`low`、`medium`、`high` 四档：**禁用**落 `minimal`（几乎不思考，这个接口没有真正的关闭档），`high` 及以上并入 `high`。
 
 Messages 协议下这些档位落在 Anthropic 自己的思考控制上：Claude 4.6 及更早的型号发 `thinking: {type: "enabled", budget_tokens: N}`，预算最多取输出上限的一半；更新的型号发 `thinking: {type: "adaptive"}` 加 `output_config.effort`——两代型号互不认识对方的写法。接口能接受的最小预算是 1024 token，且从 **最大输出 token** 里扣，所以选了档位就要把上限设在 2048 以上；低于这个值时插件会直接说明原因，而不是发一个必然被拒绝的请求。思考与采样参数互斥，因此开启思考时 **温度**、**Top P**、**Top K** 都不发送；新代号型号即便不开启思考也拒绝这三个参数。
 
@@ -177,6 +179,7 @@ Chat Completions 下这个字段是**协议自带的写法，不是厂商扩展*
 - **不支持发布服务。** 发布访客持有的是只读角色，而插件使用的内核端点要求管理员角色，因此 `disabledInPublish` 已设为 `true`。
 - **API Key 的加密依赖思源数据仓库密钥。** 没有它时以明文保存，设置页会标出这一点，初始化之后自动改为加密保存。
 - **「使用思源设置中供应商」不保存供应商的地址与密钥。** 插件只记下协议、供应商与模型名，其余每次请求前现读；这三项每台设备各存一份，思源那边删掉这个供应商或换了设备之后需要重新选。
+- **Gemini Interactions 显式关闭服务端留存。** 该接口默认会保存请求与响应（供 `previous_interaction_id` 续写对话），而插件每次请求都是独立的一次调用，所以一律发 `store: false`，笔记正文不会留在服务端。
 
 ## 排查
 
@@ -186,12 +189,13 @@ Chat Completions 下这个字段是**协议自带的写法，不是厂商扩展*
 | --- | --- |
 | `HTTP 404` | Base URL 写错。对照供应商文档检查版本段。 |
 | Messages 协议下 `HTTP 404` | Base URL 要填供应商的 **Messages** 基础地址：Anthropic 是 `https://api.anthropic.com/v1`，DeepSeek 是 `https://api.deepseek.com/anthropic`。插件只在缺失时补 `/v1` 与 `/messages`，所以把 OpenAI 式的 `https://api.deepseek.com` 填进来越过 `/anthropic` 就会落到不存在的 `/v1/messages`。只报 `HTTP 404`、没有响应体，基本就是这种情况。 |
+| Interactions 协议下 `HTTP 404` | Base URL 要填 Gemini 的版本段，如 `https://generativelanguage.googleapis.com/v1beta`。插件只在缺失时补 `/v1beta` 与 `/interactions`，自建网关多一层路径时不要指望它猜对。 |
 | `HTTP 401` | API Key 错误或缺失。Messages 认 `x-api-key`，除 OpenRouter 外插件都按这个头发送。 |
 | 报错里出现 `max_completion_tokens`（Chat Completions） | 你的供应商只认 `max_tokens`。插件会自动改用正确字段名重试；若你看到两次，说明重试也失败了。 |
 | `HTTP 400` 且提到未知参数 | 供应商不认 `reasoning_effort`。把 **思考强度** 设为 **默认**。 |
 | `SiYuan provider "…" was not found` | 该供应商已从思源设置里删除，或当前角色读不到思源的 AI 配置。回插件设置里重新选一个。 |
 | `SiYuan has no default model for the editor AI` / `… for the agent` | 选了对应的 **跟随编辑器默认** / **跟随智能体默认**，但思源里那一处还没有默认模型。到思源 **设置 → AI** 里设一个，或在插件里改选一条具体供应商。 |
-| `SiYuan provider "…" uses the protocol "…", which this plugin does not implement` | 该供应商用的协议插件没实现（只有 Chat Completions、Responses API、Anthropic Messages 三种）。改成自定义协议并自己填地址，或换一个供应商。 |
+| `SiYuan provider "…" uses the protocol "…", which this plugin does not implement` | 该供应商用的协议插件没实现（只有 Chat Completions、Responses API、Anthropic Messages 与 Gemini Interactions 四种）。改成自定义协议并自己填地址，或换一个供应商。 |
 | `SiYuan provider "…" has no base URL` | 思源里那条供应商没填 Base URL。到思源 **设置 → AI → 供应商** 里补上。 |
 | 自定义请求头里 `{{vars.…}}`、`{{secrets.…}}` 被原样发出 | 名字不存在，或该密钥的「允许主机」不含 Base URL 的域名。密钥只在它的允许主机里替换。 |
 | `Anthropic thinking needs an output token limit of at least 2048` | 选了思考档位而 **最大输出 token** 太小。调大它，或把 **思考强度** 设为 **默认**。 |

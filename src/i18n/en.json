@@ -9,6 +9,7 @@
   "protocolChatCompletions": "Chat Completions API",
   "protocolResponses": "Responses API",
   "protocolAnthropicMessages": "Anthropic Messages API",
+  "protocolGeminiInteractions": "Gemini Interactions API",
   "protocolSiyuanProvider": "Use a SiYuan provider",
   "protocolDesc": "Pick what the provider actually serves. Importing a SiYuan provider follows its protocol. Stored per device and never synced",
 
@@ -45,7 +46,7 @@
   "importDialogTitle": "Import provider configuration",
   "importApply": "Import",
   "importUnsupported": "Unsupported protocol",
-  "importUnsupportedHint": "This provider speaks {protocol}. The plugin implements Chat Completions, Responses and Anthropic Messages only, so the request format would not match",
+  "importUnsupportedHint": "This provider speaks {protocol}. The plugin implements Chat Completions, Responses, Anthropic Messages and Gemini Interactions only, so the request format would not match",
   "importEmpty": "No AI provider with an API key or an authentication header is configured in SiYuan settings.",
 
   "reasoningEffort": "Thinking effort",

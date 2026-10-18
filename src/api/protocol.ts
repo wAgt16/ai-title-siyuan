@@ -10,6 +10,7 @@
  */
 import {
     PROTOCOL_ANTHROPIC_MESSAGES,
+    PROTOCOL_GEMINI_INTERACTIONS,
     PROTOCOL_RESPONSES,
     REASONING_DEFAULT,
     REASONING_EFFORT_FIELD,
@@ -18,6 +19,7 @@ import {
     THINKING_DISABLED,
     type AdapterProtocol,
     type ApiSettings,
+    type ReasoningEffort,
 } from "../config";
 
 /** 一次请求用的两条提示词。各协议把它们放在不同位置（messages / instructions / system）。 */
@@ -77,6 +79,8 @@ export interface ProtocolAdapter {
     payload(params: ChatParams, api: ApiSettings, options: PayloadOptions): Record<string, unknown>;
     /** 响应体 → 补全文本与推理痕迹。文本为空串表示响应合法但没有内容。 */
     parse(body: string): ChatResult;
+    /** 模型列表响应 → 模型名列表。各协议的包装层不一样，只有字段名不同。 */
+    parseModels(body: string): string[];
 }
 
 /** 去掉结尾斜杠，避免拼出 `//chat/completions`。 */
@@ -512,6 +516,154 @@ function anthropicParse(body: string): ChatResult {
     };
 }
 
+/* ---------------------------------- Gemini Interactions ---------------------------------- */
+
+/**
+ * Interactions 的资源地址。
+ *
+ * 与 Messages 的处理一致：地址已经带版本段（/v1beta 或 /v1）时只追加资源名，
+ * 否则补一个 /v1beta —— 官方地址是
+ * https://generativelanguage.googleapis.com/v1beta/interactions，
+ * 自建网关也常要求填到 /v1beta 为止。
+ */
+function geminiURL(baseURL: string, resource: string): string {
+    const base = trimBase(baseURL);
+    return /\/v1(beta)?$/i.test(base) ? `${base}/${resource}` : `${base}/v1beta/${resource}`;
+}
+
+function geminiHeaders(api: ApiSettings): Record<string, string> {
+    const apiKey = api.apiKey.trim();
+    // Gemini 只认这个头；它同时也支持 ?key= 查询参数，但把密钥写进 URL 会进日志
+    return apiKey === "" ? {} : {"x-goog-api-key": apiKey};
+}
+
+/** 思考强度档位远多于 Interactions 的四档，多出来的并入相邻档。 */
+function geminiThinkingLevel(effort: ReasoningEffort): "minimal" | "low" | "medium" | "high" {
+    switch (effort) {
+        case "low":
+            return "low";
+        case "medium":
+            return "medium";
+        case REASONING_EFFORT_OFF:
+            // 这个接口没有「关闭」档：minimal 是「几乎不思考」，也是最接近的一档。
+            // 真的还在推理时，生成结束后的「禁用思考未生效」提示会把它报出来。
+            return "minimal";
+        default:
+            // high / xhigh / max 都并入最高档
+            return "high";
+    }
+}
+
+function geminiPayload(params: ChatParams, api: ApiSettings): Record<string, unknown> {
+    // 采样参数与输出上限都收在 generation_config 里，不再平铺在顶层
+    const generationConfig: Record<string, unknown> = {temperature: api.temperature};
+    if (api.topP !== null && api.topP !== undefined) {
+        generationConfig.top_p = api.topP;
+    }
+    // top_k 不发：Interactions 的 generation_config 里没有这个字段
+    if (api.maxTokens > 0) {
+        generationConfig.max_output_tokens = api.maxTokens;
+    }
+    if (api.reasoningEffort !== REASONING_DEFAULT) {
+        generationConfig.thinking_level = geminiThinkingLevel(api.reasoningEffort);
+    }
+    return {
+        model: api.model.trim(),
+        // 文本输入允许直接给字符串，不必包成 content 数组
+        input: params.user,
+        // 系统提示词是单独的顶层字段，不在 input 里
+        system_instruction: params.system,
+        // 默认会留存请求与响应（供 previous_interaction_id 使用），而这里发出去的是笔记正文。
+        // 插件每次都是独立的一次调用，用不上服务端状态，所以显式关掉。
+        store: false,
+        generation_config: generationConfig,
+    };
+}
+
+interface GeminiInteractionResponse {
+    status?: string;
+    error?: {message?: string};
+    steps?: {
+        type?: string;
+        content?: {type?: string; text?: string}[];
+        /** 思考步骤把摘要放在这里，没有 content 数组。 */
+        summary?: {type?: string; text?: string};
+    }[];
+    usage?: {total_thought_tokens?: number};
+}
+
+/**
+ * 从 steps 里取文本。
+ *
+ * 一次响应可能同时有 thought、model_output 甚至 function_call 步骤，
+ * 只有 model_output 里的 text 块才是回答。思考摘要单独收集：它不算回答，
+ * 但要能报出「禁用思考没生效」。
+ */
+function geminiParse(body: string): ChatResult {
+    const parsed = parseBody<GeminiInteractionResponse>(body);
+    if (parsed.error?.message) {
+        // HTTP 200 也可能带回失败的 interaction
+        throw new ApiError(parsed.error.message, false);
+    }
+    if (parsed.status === "failed") {
+        throw new ApiError("The interaction failed without an error message", false);
+    }
+
+    let text = "";
+    let reasoning = "";
+    for (const step of parsed.steps ?? []) {
+        if (step.type === "thought") {
+            if (step.summary?.type === "text") {
+                reasoning += step.summary.text ?? "";
+            }
+            continue;
+        }
+        if (step.type !== "model_output") {
+            continue;
+        }
+        for (const part of step.content ?? []) {
+            if (part.type === "text") {
+                text += part.text ?? "";
+            }
+        }
+    }
+
+    // 与另外两个协议一致：回答为空时回退到思考摘要，
+    // 只有思考模式的模型会把全部输出留在那里
+    const traceText = reasoning.trim();
+    return {
+        text: firstText([text, traceText]),
+        reasoning: trace(traceText, positiveNumber(parsed.usage?.total_thought_tokens)),
+    };
+}
+
+/* -------------------------------------- 模型列表 -------------------------------------- */
+
+function parseModelsJSON<T>(body: string): T {
+    try {
+        return JSON.parse(body) as T;
+    } catch {
+        throw new Error(`Response is not valid JSON: ${body.trim().slice(0, 200)}`);
+    }
+}
+
+/** Chat Completions、Responses 与 Messages 的模型列表都是 `{data: [{id}]}`。 */
+function dataModelNames(body: string): string[] {
+    const parsed = parseModelsJSON<{data?: {id?: string}[]}>(body);
+    // 兼容服务可能不实现 /models，或省略 id 字段
+    return (parsed.data ?? [])
+        .map((item) => item.id)
+        .filter((id): id is string => typeof id === "string" && id !== "");
+}
+
+/** Interactions 的模型列表是 `{models: [{name: "models/gemini-…"}]}`，名字带前缀。 */
+function geminiModelNames(body: string): string[] {
+    const parsed = parseModelsJSON<{models?: {name?: string}[]}>(body);
+    return (parsed.models ?? [])
+        .map((item) => (item.name ?? "").trim().replace(/^models\//, ""))
+        .filter((name) => name !== "");
+}
+
 /* ------------------------------------- 协议分发 ------------------------------------- */
 
 const chatCompletions: ProtocolAdapter = {
@@ -520,6 +672,7 @@ const chatCompletions: ProtocolAdapter = {
     headers: bearerHeaders,
     payload: chatPayload,
     parse: chatParse,
+    parseModels: dataModelNames,
 };
 
 const responses: ProtocolAdapter = {
@@ -528,6 +681,7 @@ const responses: ProtocolAdapter = {
     headers: bearerHeaders,
     payload: responsesPayload,
     parse: responsesParse,
+    parseModels: dataModelNames,
 };
 
 const anthropic: ProtocolAdapter = {
@@ -537,6 +691,17 @@ const anthropic: ProtocolAdapter = {
     headers: anthropicHeaders,
     payload: anthropicPayload,
     parse: anthropicParse,
+    parseModels: dataModelNames,
+};
+
+const gemini: ProtocolAdapter = {
+    completionURL: (baseURL) => geminiURL(baseURL, "interactions"),
+    // 与 Messages 一样一次列全：默认一页只有 50 条
+    modelsURL: (baseURL) => `${geminiURL(baseURL, "models")}?pageSize=1000`,
+    headers: geminiHeaders,
+    payload: geminiPayload,
+    parse: geminiParse,
+    parseModels: geminiModelNames,
 };
 
 export function adapterFor(protocol: AdapterProtocol): ProtocolAdapter {
@@ -545,6 +710,8 @@ export function adapterFor(protocol: AdapterProtocol): ProtocolAdapter {
             return responses;
         case PROTOCOL_ANTHROPIC_MESSAGES:
             return anthropic;
+        case PROTOCOL_GEMINI_INTERACTIONS:
+            return gemini;
         default:
             // 配置里的「使用思源设置中供应商」在 resolveApiSettings 里已经换成了供应商标明的协议，
             // 走不到这里；留着默认分支只是为了覆盖 Chat Completions 这一种合法取值

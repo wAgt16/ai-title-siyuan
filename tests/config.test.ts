@@ -34,7 +34,7 @@ describe("mergeSettings（旧配置兼容）", () => {
         expect(merged.ui.debug).toBe(false);
     });
 
-    it("四个协议取值都保留，认不出来的取值退回 Chat Completions（#8 #20 #27）", () => {
+    it("下拉里的协议取值都保留，认不出来的退回 Chat Completions（#8 #20 #27 #30）", () => {
         for (const protocol of PROTOCOLS) {
             expect(mergeSettings({api: {protocol}}).api.protocol).toBe(protocol);
         }
@@ -44,6 +44,7 @@ describe("mergeSettings（旧配置兼容）", () => {
         // 「使用思源设置中供应商」是一种配置来源，不是能拿去发请求的协议
         expect(isAdapterProtocol("siyuan")).toBe(false);
         expect(isAdapterProtocol("openai-responses")).toBe(true);
+        expect(isAdapterProtocol("gemini-interactions")).toBe(true);
     });
 
     it("新装默认「使用思源设置中供应商」，老配置里的协议原样保留（#27）", () => {

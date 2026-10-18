@@ -35,6 +35,7 @@ import {
     MEDIA_RAW,
     PROTOCOL_ANTHROPIC_MESSAGES,
     PROTOCOL_CHAT_COMPLETIONS,
+    PROTOCOL_GEMINI_INTERACTIONS,
     PROTOCOL_RESPONSES,
     PROTOCOL_SIYUAN_PROVIDER,
     PROTOCOLS,
@@ -723,6 +724,8 @@ function protocolName(protocol: string, t: T): string {
             return t("protocolResponses");
         case PROTOCOL_ANTHROPIC_MESSAGES:
             return t("protocolAnthropicMessages");
+        case PROTOCOL_GEMINI_INTERACTIONS:
+            return t("protocolGeminiInteractions");
         default:
             return protocol;
     }
