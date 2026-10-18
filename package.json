@@ -1,7 +1,7 @@
 {
   "name": "ai-title-siyuan",
-  "version": "1.0.4",
-  "description": "Generate note titles with the Chat Completions, Responses or Anthropic Messages API",
+  "version": "1.1.0",
+  "description": "Generate note titles with the Chat Completions, Responses, Anthropic Messages or Gemini Interactions API",
   "type": "module",
   "private": true,
   "scripts": {

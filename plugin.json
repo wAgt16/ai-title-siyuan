@@ -2,7 +2,7 @@
   "name": "ai-title-siyuan",
   "author": "wmy2981",
   "url": "https://github.com/wmy2981/ai-title-siyuan",
-  "version": "1.0.4",
+  "version": "1.1.0",
   "minAppVersion": "3.8.3",
   "backends": [
     "all"
@@ -16,8 +16,8 @@
     "zh-CN": "AI 标题生成"
   },
   "description": {
-    "default": "Generate note titles with the Chat Completions, Responses or Anthropic Messages API",
-    "zh-CN": "用 Chat Completions、Responses API 或 Anthropic Messages 接口为笔记生成标题"
+    "default": "Generate note titles with the Chat Completions, Responses, Anthropic Messages or Gemini Interactions API",
+    "zh-CN": "用 Chat Completions、Responses API、Anthropic Messages 或 Gemini Interactions 接口为笔记生成标题"
   },
   "readme": {
     "default": "README.md",

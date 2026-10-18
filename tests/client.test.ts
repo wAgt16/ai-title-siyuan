@@ -3,6 +3,7 @@ import {
     DEFAULT_SETTINGS,
     PROTOCOL_ANTHROPIC_MESSAGES,
     PROTOCOL_CHAT_COMPLETIONS,
+    PROTOCOL_GEMINI_INTERACTIONS,
     PROTOCOL_RESPONSES,
     type ApiSettings,
     type BehaviorSettings,
@@ -83,6 +84,22 @@ describe("chat 的请求与响应（#8 #20 的三种协议都走同一条传输�
         expect(calls[0].url).toBe("https://api.anthropic.com/v1/messages");
         expect(calls[0].headers).toEqual([{"anthropic-version": "2023-06-01"}, {"x-api-key": "sk-test"}]);
         expect(calls[0].payload).toHaveProperty("max_tokens");
+    });
+
+    it("Interactions：发到 /v1beta/interactions 并带上 x-goog-api-key（#30）", async () => {
+        stubReplies(reply(200, JSON.stringify({
+            steps: [{type: "model_output", content: [{type: "text", text: "Title"}]}],
+        })));
+        const target: ApiSettings = {
+            ...API,
+            protocol: PROTOCOL_GEMINI_INTERACTIONS,
+            baseURL: "https://generativelanguage.googleapis.com/v1beta",
+        };
+        const result = await chat(PARAMS, target, NO_RETRY);
+        expect(result.text).toBe("Title");
+        expect(calls[0].url).toBe("https://generativelanguage.googleapis.com/v1beta/interactions");
+        expect(calls[0].headers).toEqual([{"x-goog-api-key": "sk-test"}]);
+        expect(calls[0].payload).toHaveProperty("store", false);
     });
 
     it("供应商拒绝 max_completion_tokens 时自动改名重发，且不消耗重试预算", async () => {
@@ -178,6 +195,18 @@ describe("listModels（#9 获取模型列表）", () => {
         await expect(listModels(target, 1000)).resolves.toEqual(["claude-sonnet-5"]);
         expect(calls[0].url).toBe("https://api.anthropic.com/v1/models?limit=1000");
         expect(calls[0].headers).toContainEqual({"x-api-key": "sk-test"});
+    });
+
+    it("Interactions 走 models 端点，名字取 name 并去掉 models/ 前缀（#30）", async () => {
+        stubReplies(reply(200, '{"models":[{"name":"models/gemini-3.8-flash"},{"name":"models/gemini-3.1-pro"}]}'));
+        const target: ApiSettings = {
+            ...API,
+            protocol: PROTOCOL_GEMINI_INTERACTIONS,
+            baseURL: "https://generativelanguage.googleapis.com/v1beta",
+        };
+        await expect(listModels(target, 1000)).resolves.toEqual(["gemini-3.8-flash", "gemini-3.1-pro"]);
+        expect(calls[0].url).toBe("https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000");
+        expect(calls[0].headers).toContainEqual({"x-goog-api-key": "sk-test"});
     });
 
     it("失败时带上状态码与原文，原文为空时只留状态码", async () => {

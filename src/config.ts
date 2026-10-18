@@ -105,9 +105,12 @@ export const TOC_OPTIONS = [TOC_NEVER, TOC_TRUNCATED, TOC_ALWAYS] as const;
 export type TocMode = (typeof TOC_OPTIONS)[number];
 
 /**
- * 生成协议，取值与思源自己的 AI 供应商配置一致（app/src/config/tabs/ai/aiProviderUi.ts）。
+ * 生成协议。
  *
- * 三者的请求地址、请求体结构和响应结构互不兼容，供应商只支持其中某一种，
+ * 前三个取值与思源自己的 AI 供应商配置一致（app/src/config/tabs/ai/aiProviderUi.ts）；
+ * gemini-interactions 是插件自己加的那一种，思源那边还只有前三个。
+ *
+ * 每个协议的请求地址、请求体结构和响应结构互不兼容，供应商只支持其中某一种，
  * 所以协议是接口配置里的第一等字段，不是能猜出来的东西 —— 从思源导入时会跟着走。
  *
  * 空串与未知取值一律折算成 Chat Completions：思源那边的协议字段缺省时也是这个语义
@@ -116,6 +119,14 @@ export type TocMode = (typeof TOC_OPTIONS)[number];
 export const PROTOCOL_CHAT_COMPLETIONS = "openai";
 export const PROTOCOL_RESPONSES = "openai-responses";
 export const PROTOCOL_ANTHROPIC_MESSAGES = "anthropic-messages";
+/**
+ * Gemini 的 Interactions 接口（#30）。
+ *
+ * 自 2026 年 6 月起它是 Google 推荐的新接口，老的 generateContent 只作为 legacy 保留。
+ * 请求体与响应体都换成 Interaction 资源那套结构，与 OpenAI 兼容端点没有共同字段，
+ * 所以只能单独一个协议。
+ */
+export const PROTOCOL_GEMINI_INTERACTIONS = "gemini-interactions";
 
 /**
  * 「使用思源设置中供应商」（#27）：协议、Base URL、API Key 与请求头全部现取自思源的
@@ -131,13 +142,35 @@ export const ADAPTER_PROTOCOLS = [
     PROTOCOL_CHAT_COMPLETIONS,
     PROTOCOL_RESPONSES,
     PROTOCOL_ANTHROPIC_MESSAGES,
+    PROTOCOL_GEMINI_INTERACTIONS,
 ] as const;
 
-/** 设置页协议下拉的全部取值：先列默认的配置来源，再列三个具体协议。 */
+/** 设置页协议下拉的全部取值：先列默认的配置来源，再列四个具体协议。 */
 export const PROTOCOLS = [PROTOCOL_SIYUAN_PROVIDER, ...ADAPTER_PROTOCOLS] as const;
 
 export type AdapterProtocol = (typeof ADAPTER_PROTOCOLS)[number];
 export type Protocol = (typeof PROTOCOLS)[number];
+
+/**
+ * 供应商下拉里「跟随编辑器默认」与「跟随智能体默认」的取值（#28）。
+ *
+ * 两者都不是供应商，而是「用思源里某一处默认模型」：编辑器那条取
+ * config.ai.editing.modelId，智能体那条取 config.ai.agent.modelId。
+ *
+ * 分成两条而不是合并成一条，是因为思源里这两处可以指向不同的模型；合并后必须挑一个
+ * 优先，而那个优先级没有任何依据，等于替用户做选择。
+ *
+ * 取值故意起得不像思源的供应商 id（那些是 `20260913135841-1u2j84c` 这种时间戳形状），
+ * 免得手改配置时撞上一条真的供应商。
+ */
+export const PROVIDER_FOLLOW_EDITOR = "follow-editor";
+export const PROVIDER_FOLLOW_AGENT = "follow-agent";
+
+/** 当前选的是不是「跟随编辑器默认」或「跟随智能体默认」。trim 一次，手改的配置里可能带空格。 */
+export function isFollowDefaultProvider(provider: string): boolean {
+    const value = provider.trim();
+    return value === PROVIDER_FOLLOW_EDITOR || value === PROVIDER_FOLLOW_AGENT;
+}
 
 /** 判断某个取值是否是设置页下拉里的合法取值。读旧配置时过一次。 */
 export function isProtocol(value: unknown): value is Protocol {
@@ -154,6 +187,10 @@ export interface ApiSettings {
     /**
      * 选中的思源供应商 id，只在 protocol 为「使用思源设置中供应商」时有意义（#27）。
      * 存 id 而不存它的地址与密钥：那些值每次请求前现读，思源那边改了就跟着变。
+     *
+     * 取值也可能是 PROVIDER_FOLLOW_EDITOR / PROVIDER_FOLLOW_AGENT（#28）：那是
+     * 「跟随编辑器默认」与「跟随智能体默认」，由思源决定用哪个供应商与模型，
+     * 插件这边没有可填的东西。
      *
      * **这一项与 siyuanModel 只在本设备成立，不参与数据同步**（见 device-store.ts）：
      * 思源自己的 AI 供应商配置不在同步范围内，供应商 id 同步到别的设备只会指向一个
@@ -427,12 +464,25 @@ export function hasProviderEndpoint(api: ApiSettings): boolean {
         : api.baseURL.trim() !== "";
 }
 
-/** 当前模式实际用的模型名：两种模式各有一个字段，见 ApiSettings 的 siyuanModel。 */
+/**
+ * 当前模式实际选的模型名：两种模式各有一个字段，见 ApiSettings 的 siyuanModel。
+ *
+ * 「跟随编辑器默认」与「跟随智能体默认」（#28）下插件这边没有模型名可填，返回空串 ——
+ * 真正用哪个由思源决定，见 siyuan-provider.ts 的 followDefaultTarget。
+ */
 export function selectedModel(api: ApiSettings): string {
-    return api.protocol === PROTOCOL_SIYUAN_PROVIDER ? api.siyuanModel : api.model;
+    if (api.protocol !== PROTOCOL_SIYUAN_PROVIDER) {
+        return api.model;
+    }
+    return isFollowDefaultProvider(api.siyuanProvider) ? "" : api.siyuanModel;
 }
 
 /** 必填项是否齐全，用于在发请求前给出一致的提示。 */
 export function hasProviderConfig(api: ApiSettings): boolean {
+    // 两条「跟随默认」都没有可填的模型名：选了就算配置齐全，
+    // 思源那边没设默认模型时由 resolveApiSettings 当场说清楚（#28）
+    if (api.protocol === PROTOCOL_SIYUAN_PROVIDER && isFollowDefaultProvider(api.siyuanProvider)) {
+        return true;
+    }
     return hasProviderEndpoint(api) && selectedModel(api).trim() !== "";
 }

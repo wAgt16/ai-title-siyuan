@@ -249,17 +249,8 @@ export async function listModels(api: ApiSettings, timeout: number): Promise<str
     if (response.status >= 400) {
         throw new Error(describeHttpError(response.status, extractErrorMessage(response.body)));
     }
-
-    let parsed: {data?: {id?: string}[]};
-    try {
-        parsed = JSON.parse(response.body) as {data?: {id?: string}[]};
-    } catch {
-        throw new Error(`Response is not valid JSON: ${response.body.trim().slice(0, 200)}`);
-    }
-    // 兼容服务可能不实现 /models，或省略 id 字段
-    return (parsed.data ?? [])
-        .map((item) => item.id)
-        .filter((id): id is string => typeof id === "string" && id !== "");
+    // 列表的包装层各协议不一样（data / models），解析交给适配器
+    return adapter.parseModels(response.body);
 }
 
 /**

@@ -3,6 +3,7 @@ import {
     DEFAULT_SETTINGS,
     PROTOCOL_ANTHROPIC_MESSAGES,
     PROTOCOL_CHAT_COMPLETIONS,
+    PROTOCOL_GEMINI_INTERACTIONS,
     PROTOCOL_RESPONSES,
     REASONING_DEFAULT,
     type ApiSettings,
@@ -30,6 +31,7 @@ function api(overrides: Partial<ApiSettings> = {}): ApiSettings {
 const chat = adapterFor(PROTOCOL_CHAT_COMPLETIONS);
 const responses = adapterFor(PROTOCOL_RESPONSES);
 const anthropic = adapterFor(PROTOCOL_ANTHROPIC_MESSAGES);
+const gemini = adapterFor(PROTOCOL_GEMINI_INTERACTIONS);
 
 describe("请求地址（#8 #20）", () => {
     it("按协议追加各自的资源名", () => {
@@ -49,11 +51,26 @@ describe("请求地址（#8 #20）", () => {
         expect(anthropic.completionURL("https://api.anthropic.com/V1")).toBe("https://api.anthropic.com/V1/messages");
     });
 
-    it("模型列表地址同样按协议走，Messages 一次列全", () => {
+    it("模型列表地址同样按协议走，Messages 与 Interactions 一次列全", () => {
         expect(chat.modelsURL("https://example.com/v1")).toBe("https://example.com/v1/models");
         expect(responses.modelsURL("https://example.com/v1")).toBe("https://example.com/v1/models");
         expect(anthropic.modelsURL("https://api.anthropic.com/v1"))
             .toBe("https://api.anthropic.com/v1/models?limit=1000");
+        expect(gemini.modelsURL("https://generativelanguage.googleapis.com/v1beta"))
+            .toBe("https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000");
+    });
+
+    it("Interactions 的地址带了版本段就直接追加，没带才补 /v1beta（#30）", () => {
+        expect(gemini.completionURL("https://generativelanguage.googleapis.com/v1beta"))
+            .toBe("https://generativelanguage.googleapis.com/v1beta/interactions");
+        expect(gemini.completionURL("https://generativelanguage.googleapis.com/v1beta/"))
+            .toBe("https://generativelanguage.googleapis.com/v1beta/interactions");
+        expect(gemini.completionURL("https://generativelanguage.googleapis.com/v1"))
+            .toBe("https://generativelanguage.googleapis.com/v1/interactions");
+        expect(gemini.completionURL("https://generativelanguage.googleapis.com"))
+            .toBe("https://generativelanguage.googleapis.com/v1beta/interactions");
+        expect(gemini.completionURL("https://example.com/gemini"))
+            .toBe("https://example.com/gemini/v1beta/interactions");
     });
 });
 
@@ -75,6 +92,11 @@ describe("鉴权头（#20）", () => {
     it("接口不需要密钥时不带鉴权头", () => {
         expect(chat.headers(api({apiKey: "  "}))).toEqual({});
         expect(anthropic.headers(api({apiKey: ""}))).toEqual({"anthropic-version": "2023-06-01"});
+        expect(gemini.headers(api({apiKey: ""}))).toEqual({});
+    });
+
+    it("Interactions 走 x-goog-api-key（#30）", () => {
+        expect(gemini.headers(api())).toEqual({"x-goog-api-key": "sk-test"});
     });
 });
 
@@ -225,6 +247,47 @@ describe("Anthropic Messages 请求体（#20）", () => {
     });
 });
 
+describe("Gemini Interactions 请求体（#30）", () => {
+    /** 取出 Interactions 的 generation_config，免得每处都写类型断言。 */
+    function generationConfig(payload: Record<string, unknown>): Record<string, unknown> {
+        return payload.generation_config as Record<string, unknown>;
+    }
+
+    it("系统提示词与用户输入分开放，采样参数收进 generation_config", () => {
+        const payload = build(gemini, api({model: "gemini-3.8-flash", temperature: 0.4, topP: 0.9, maxTokens: 600}));
+        expect(payload.model).toBe("gemini-3.8-flash");
+        expect(payload.input).toBe("USER");
+        expect(payload.system_instruction).toBe("SYS");
+        expect(generationConfig(payload)).toMatchObject({temperature: 0.4, top_p: 0.9, max_output_tokens: 600});
+        // 默认会留存请求与响应，而这里发出去的是笔记正文
+        expect(payload.store).toBe(false);
+        // 平铺的 OpenAI 字段一个都不发
+        expect(payload).not.toHaveProperty("messages");
+        expect(payload).not.toHaveProperty("temperature");
+    });
+
+    it("top_k 不发：Interactions 的 generation_config 里没有这个字段", () => {
+        const payload = build(gemini, api({topK: 20}));
+        expect(payload).not.toHaveProperty("top_k");
+        expect(generationConfig(payload)).not.toHaveProperty("top_k");
+    });
+
+    it("上限留空时不发 max_output_tokens", () => {
+        expect(generationConfig(build(gemini, api({maxTokens: 0})))).not.toHaveProperty("max_output_tokens");
+    });
+
+    it("思考强度换成 thinking_level，超出的档位并入相邻档", () => {
+        expect(generationConfig(build(gemini, api({reasoningEffort: REASONING_DEFAULT}))))
+            .not.toHaveProperty("thinking_level");
+        expect(generationConfig(build(gemini, api({reasoningEffort: "none"}))).thinking_level).toBe("minimal");
+        expect(generationConfig(build(gemini, api({reasoningEffort: "low"}))).thinking_level).toBe("low");
+        expect(generationConfig(build(gemini, api({reasoningEffort: "medium"}))).thinking_level).toBe("medium");
+        for (const effort of ["high", "xhigh", "max"] as const) {
+            expect(generationConfig(build(gemini, api({reasoningEffort: effort}))).thinking_level).toBe("high");
+        }
+    });
+});
+
 describe("响应解析", () => {
     it("Chat Completions：取 content，content 为空时回退推理字段", () => {
         expect(chat.parse('{"choices":[{"message":{"content":"  hello  "}}]}').text).toBe("hello");
@@ -291,9 +354,63 @@ describe("响应解析", () => {
         expect(() => anthropic.parse('{"id":"msg_1"}')).toThrow(/no content blocks/);
     });
 
-    it("三个协议都要求响应是合法 JSON", () => {
-        for (const adapter of [chat, responses, anthropic]) {
+    it("Interactions：拼接 model_output 的文本块，思考摘要单独进痕迹（#30）", () => {
+        const body = JSON.stringify({
+            id: "int_1",
+            status: "completed",
+            steps: [
+                {type: "user_input", content: [{type: "text", text: "USER"}]},
+                {type: "thought", summary: {type: "text", text: "think"}},
+                {type: "model_output", content: [{type: "text", text: '{"a":'}, {type: "text", text: '"b"}'}]},
+            ],
+            usage: {total_thought_tokens: 9},
+        });
+        const result = gemini.parse(body);
+        expect(result.text).toBe('{"a":"b"}');
+        expect(result.reasoning).toEqual({text: "think", tokens: 9});
+    });
+
+    it("Interactions：只剩思考摘要时用它当文本，而不是报「没有内容」", () => {
+        const body = JSON.stringify({
+            steps: [{type: "thought", summary: {type: "text", text: "only thinking"}}],
+        });
+        expect(gemini.parse(body).text).toBe("only thinking");
+    });
+
+    it("Interactions：没有 thought token 时痕迹里不带计数", () => {
+        const body = JSON.stringify({
+            steps: [{type: "model_output", content: [{type: "text", text: "Title"}]}],
+        });
+        expect(gemini.parse(body).reasoning).toBeUndefined();
+    });
+
+    it("Interactions：响应体里的错误与失败的 interaction 都按失败处理", () => {
+        expect(() => gemini.parse('{"error":{"message":"boom"}}')).toThrow(/boom/);
+        expect(() => gemini.parse('{"status":"failed","steps":[]}')).toThrow(/failed/);
+    });
+
+    it("四个协议都要求响应是合法 JSON", () => {
+        for (const adapter of [chat, responses, anthropic, gemini]) {
             expect(() => adapter.parse("not json")).toThrow(ApiError);
         }
+    });
+});
+
+describe("模型列表的解析（#9 #30）", () => {
+    it("data 包装层跳过没有 id 的条目", () => {
+        for (const adapter of [chat, responses, anthropic]) {
+            expect(adapter.parseModels('{"data":[{"id":"m1"},{"id":""},{"name":"没有 id"},{"id":"m2"}]}'))
+                .toEqual(["m1", "m2"]);
+        }
+    });
+
+    it("Interactions 取 models 里的 name 并去掉 models/ 前缀", () => {
+        expect(gemini.parseModels(
+            '{"models":[{"name":"models/gemini-3.8-flash"},{"name":"gemini-3.1-pro"},{"displayName":"没有 name"}]}',
+        )).toEqual(["gemini-3.8-flash", "gemini-3.1-pro"]);
+    });
+
+    it("不是 JSON 时报错", () => {
+        expect(() => gemini.parseModels("<html>502</html>")).toThrow(/not valid JSON/);
     });
 });

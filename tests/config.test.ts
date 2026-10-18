@@ -5,12 +5,15 @@ import {
     hasProviderConfig,
     hasProviderEndpoint,
     isAdapterProtocol,
+    isFollowDefaultProvider,
     isProtocol,
     mergeSettings,
     PROTOCOL_ANTHROPIC_MESSAGES,
     PROTOCOL_CHAT_COMPLETIONS,
     PROTOCOL_SIYUAN_PROVIDER,
     PROTOCOLS,
+    PROVIDER_FOLLOW_AGENT,
+    PROVIDER_FOLLOW_EDITOR,
     REASONING_DEFAULT,
     REASONING_EFFORT_OFF,
     selectedModel,
@@ -31,7 +34,7 @@ describe("mergeSettings（旧配置兼容）", () => {
         expect(merged.ui.debug).toBe(false);
     });
 
-    it("四个协议取值都保留，认不出来的取值退回 Chat Completions（#8 #20 #27）", () => {
+    it("下拉里的协议取值都保留，认不出来的退回 Chat Completions（#8 #20 #27 #30）", () => {
         for (const protocol of PROTOCOLS) {
             expect(mergeSettings({api: {protocol}}).api.protocol).toBe(protocol);
         }
@@ -41,6 +44,7 @@ describe("mergeSettings（旧配置兼容）", () => {
         // 「使用思源设置中供应商」是一种配置来源，不是能拿去发请求的协议
         expect(isAdapterProtocol("siyuan")).toBe(false);
         expect(isAdapterProtocol("openai-responses")).toBe(true);
+        expect(isAdapterProtocol("gemini-interactions")).toBe(true);
     });
 
     it("新装默认「使用思源设置中供应商」，老配置里的协议原样保留（#27）", () => {
@@ -156,5 +160,27 @@ describe("hasProviderConfig（#27 两种模式要填的东西不同）", () => {
         };
         expect(selectedModel(api)).toBe("gpt-5.1");
         expect(hasProviderConfig({...api, model: ""})).toBe(false);
+    });
+
+    it("两条「跟随默认」都没有可填的模型名，选了就算配置齐全（#28）", () => {
+        for (const provider of [PROVIDER_FOLLOW_EDITOR, PROVIDER_FOLLOW_AGENT]) {
+            const api: ApiSettings = {
+                ...DEFAULT_SETTINGS.api,
+                protocol: PROTOCOL_SIYUAN_PROVIDER,
+                siyuanProvider: provider,
+            };
+            expect(hasProviderConfig(api)).toBe(true);
+            expect(hasProviderEndpoint(api)).toBe(true);
+            // 这一档不写模型名：真正用哪个由思源决定，插件这边没有值可显示
+            expect(selectedModel(api)).toBe("");
+            // 手改的配置里带空格同样认得
+            expect(hasProviderConfig({...api, siyuanProvider: ` ${provider} `})).toBe(true);
+        }
+        // 空值与具体供应商仍然要求模型名
+        expect(hasProviderConfig({...DEFAULT_SETTINGS.api, protocol: PROTOCOL_SIYUAN_PROVIDER})).toBe(false);
+        // 只认这两个确切取值，其余一律按供应商 id 处理
+        expect(isFollowDefaultProvider("follow")).toBe(false);
+        expect(isFollowDefaultProvider("")).toBe(false);
+        expect(isFollowDefaultProvider("20260913135841-1u2j84c")).toBe(false);
     });
 });
