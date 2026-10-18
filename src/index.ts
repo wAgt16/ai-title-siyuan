@@ -20,7 +20,7 @@ import {
 } from "./config";
 import {getDocTitle} from "./content";
 import {debug, debugJson, setDebug} from "./debug";
-import {loadProviderSelection, saveProviderSelection, withoutProviderSelection} from "./device-store";
+import {loadDeviceSelection, saveDeviceSelection, withoutDeviceState} from "./device-store";
 import {makeT, type T} from "./i18n";
 import {generateTitles, type GenerateOutcome, type NoteResult} from "./pipeline";
 import {sealSettings, unsealSettings} from "./secret";
@@ -104,15 +104,17 @@ export default class AiTitlePlugin extends Plugin {
     /**
      * 落盘。两件事在这里发生：
      * 1. API Key 换成密文（取不到思源数据仓库密钥时才退回明文，见 secret.ts）；
-     * 2. 「使用思源设置中供应商」的供应商 id 与模型名改存本设备的 local storage，
-     *    petal 那份（参与同步）里不写它们，免得同步到别的设备指向一个不存在的供应商（#27）。
+     * 2. 协议、思源供应商 id 与模型名改存本设备的 local storage，
+     *    petal 那份（参与同步）里不写它们：它们都取决于本机思源自己的配置，
+     *    同步到别的设备只会指向不存在的东西（#27、#31）。
      */
     private async persist(settings: PluginSettings): Promise<void> {
-        await saveProviderSelection({
+        await saveDeviceSelection({
+            protocol: settings.api.protocol,
             provider: settings.api.siyuanProvider,
             model: settings.api.siyuanModel,
         });
-        await this.saveData(STORAGE_NAME, await sealSettings(withoutProviderSelection(settings)));
+        await this.saveData(STORAGE_NAME, await sealSettings(withoutDeviceState(settings)));
     }
 
     private async loadSettings(): Promise<void> {
@@ -132,7 +134,7 @@ export default class AiTitlePlugin extends Plugin {
             );
         }
 
-        await this.applyDeviceSelection(merged);
+        await this.applyDeviceState(merged);
 
         // 解不开时按「清空 Key」处理，并且必须说一声：Key 无声消失只会让人以为插件坏了。
         // 用 info 而不是 error —— 这不是故障，是数据仓库密钥换了之后必然的结果。
@@ -151,35 +153,43 @@ export default class AiTitlePlugin extends Plugin {
     }
 
     /**
-     * 供应商与模型名只在本设备成立，取本设备存下的那一份（#27）。
+     * 协议、供应商与模型名只在本设备成立，取本设备存下的那一份（#27、#31）。
      *
-     * 思源自己的 AI 供应商配置不参与同步，同一个供应商 id 在别的设备上并不存在，
-     * 所以这两项不能跟着插件数据走。1.1.0 把它们写进了 petal：只有在本设备确实存在
-     * 那个供应商时才接手成本设备的选择，否则丢掉 —— 留着它只会让设置页显示一个
-     * 发请求必然失败的供应商。
+     * 思源自己的 AI 供应商配置不参与同步：协议跟着供应商走，同一条供应商 id 在别的设备上也不存在。
+     * 1.1.0 只把供应商与模型名挪了出来，协议仍然同步；现在三项一起按设备存（#31），
+     * 换设备就是换一套接口设置，不必在一台机器上替另一台机器背配置。
+     *
+     * 本设备还没存过时接手同步数据里的那一份（老配置升级上来的情况），随后回写一次把三项挪到本机。
      *
      * 无论当前是哪个模式都读：用户随时可能在设置页里切到该模式。
      */
-    private async applyDeviceSelection(merged: PluginSettings): Promise<void> {
-        const selection = await loadProviderSelection();
-        if (selection) {
-            this.settings.api.siyuanProvider = selection.provider;
-            this.settings.api.siyuanModel = selection.model;
+    private async applyDeviceState(merged: PluginSettings): Promise<void> {
+        const state = await loadDeviceSelection();
+        if (state) {
+            // 旧版本存下的选择里没有协议（那时它还在同步数据里）：接手当前这份，并回写补齐
+            this.settings.api.protocol = state.protocol === "" ? merged.api.protocol : state.protocol;
+            this.settings.api.siyuanProvider = state.provider;
+            this.settings.api.siyuanModel = state.model;
+            if (state.protocol === "") {
+                debug("Adopting the synced protocol on this device");
+                await this.persist(this.settings);
+            }
             return;
         }
+        // 本设备第一次跑这个版本：协议原样接手，供应商沿用 #27 的迁移规则
+        // （只有本设备确实存在那个供应商时才接手，否则丢掉 —— 留着只会让设置页显示一个必然失败的供应商）
         const legacyProvider = merged.api.siyuanProvider;
         if (merged.api.protocol === PROTOCOL_SIYUAN_PROVIDER && legacyProvider !== "" &&
             findSiyuanProvider(legacyProvider)) {
             debug(`Adopting the synced provider selection "${legacyProvider}" on this device`);
             this.settings.api.siyuanProvider = legacyProvider;
             this.settings.api.siyuanModel = merged.api.model;
-            // 顺手回写一次：把这两项从同步用的那份数据里挪到本设备，落盘路径见 persist
-            await this.persist(this.settings);
-            return;
+        } else {
+            this.settings.api.siyuanProvider = "";
+            this.settings.api.siyuanModel = "";
         }
-        // 本设备没选过，落盘里的旧值在本设备也不存在：两项都清掉，让用户重新选
-        this.settings.api.siyuanProvider = "";
-        this.settings.api.siyuanModel = "";
+        // 顺手回写一次：把这三项从同步用的那份数据里挪到本设备，落盘路径见 persist
+        await this.persist(this.settings);
     }
 
     /** 三个界面开关的当前状态同步到实际注册的入口上。 */

@@ -10,7 +10,7 @@
   "protocolResponses": "Responses API",
   "protocolAnthropicMessages": "Anthropic Messages API",
   "protocolSiyuanProvider": "Use a SiYuan provider",
-  "protocolDesc": "Pick what the provider actually serves. Importing a SiYuan provider follows its protocol",
+  "protocolDesc": "Pick what the provider actually serves. Importing a SiYuan provider follows its protocol. Stored per device and never synced",
 
   "provider": "Provider",
   "providerDesc": "Protocol, base URL, API key and headers come from the provider selected in SiYuan; the provider and model are picked once per device. Add one in SiYuan first if the list is empty",

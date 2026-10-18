@@ -20,7 +20,7 @@ This plugin does the naming pass for you. It reads each note's content, asks a m
 - **Review before writing.** Every title stays editable. Untick what you don't want, edit any field, or regenerate a single row.
 - **Your style, not the contract.** The system and user prompts are fixed because they carry the JSON contract the plugin parses. Put your own requirements in the `{{system}}` and `{{user}}` append slots; `{{content}}`, `{{language}}` and `{{style}}` are filled in per request.
 - **Three protocols.** Chat Completions, the Responses API and Anthropic Messages. Point it at any compatible endpoint, or import a provider you already configured in SiYuan — the protocol comes along with it.
-- **Use a provider configured in SiYuan directly.** What a fresh install starts on: the protocol, address, key and headers all come from SiYuan, and the plugin remembers only the provider and model name (picked once per device). Edits made in SiYuan apply immediately.
+- **Use a provider configured in SiYuan directly.** What a fresh install starts on: the protocol, address, key and headers all come from SiYuan, and the plugin remembers only the protocol, the provider and the model name (each stored per device, never synced). Edits made in SiYuan apply immediately.
 - **Set the thinking effort.** Pick a level from disabled up to maximum — it travels as `reasoning_effort`, `reasoning.effort` or Anthropic `thinking` depending on the protocol — or send nothing and leave it to the provider.
 - **Custom request headers.** Fill in a JSON object of extra headers whose values may reference SiYuan variables (`{{vars.NAME}}`) and secrets (`{{secrets.NAME}}`), resolved before every request — which is what providers such as opencode need. Importing a provider from SiYuan brings its headers along.
 - **The API key is encrypted at rest.** It is sealed with SiYuan's own data repo key. Without one it is stored in plain text and the settings panel says so.
@@ -51,8 +51,8 @@ That writes `package.zip` in the repository root.
 
 Open **Settings → Marketplace → Downloaded → AI Title → Settings**.
 
-1. **Protocol** — defaults to **Use a SiYuan provider**: the protocol, base URL, API key and headers all come from the provider selected in SiYuan. Switch the dropdown to one of the three concrete protocols to fill those values in yourself.
-2. **Provider** — shown only while **Use a SiYuan provider** is selected. Pick one of the providers already configured in SiYuan; an empty list means there are none yet. This choice and the model name are picked once per device.
+1. **Protocol** — defaults to **Use a SiYuan provider**: the protocol, base URL, API key and headers all come from the provider selected in SiYuan. Switch the dropdown to one of the three concrete protocols to fill those values in yourself. This one is stored per device and never synced.
+2. **Provider** — shown only while **Use a SiYuan provider** is selected. Pick one of the providers already configured in SiYuan; an empty list means there are none yet. This choice and the model name are stored per device.
 3. **Base URL** — with a custom protocol, include the version segment your provider documents. For Messages, stop at `/v1` — the plugin appends `/messages` itself.
 4. **API Key** — leave empty if your endpoint needs no key. It is encrypted with SiYuan's data repo key before being written to disk; see below.
 5. **Model** — type a name, click **Fetch models** to pick from the provider's list, or use **Import from SiYuan** to copy a provider you already configured there. With a SiYuan provider selected, clicking the field lists the models that provider registers.
@@ -62,8 +62,8 @@ Open **Settings → Marketplace → Downloaded → AI Title → Settings**.
 
 | Group | Setting | Default | Notes |
 | --- | --- | --- | --- |
-| API | Protocol | Use a SiYuan provider | Protocol, base URL, API key and headers come from the provider selected in SiYuan. Switch to one of the three concrete protocols to fill the fields below in yourself. |
-| API | Provider | *empty* | Shown only while the protocol is **Use a SiYuan provider**. Pick one of the providers configured in SiYuan; changing it also switches the model to the one that provider has enabled. The provider and model are picked once per device. |
+| API | Protocol | Use a SiYuan provider | Protocol, base URL, API key and headers come from the provider selected in SiYuan. Switch to one of the three concrete protocols to fill the fields below in yourself. Stored per device, never synced. |
+| API | Provider | *empty* | Shown only while the protocol is **Use a SiYuan provider**. Pick one of the providers configured in SiYuan; changing it also switches the model to the one that provider has enabled. The provider and model are stored per device. |
 | API | Thinking effort | Default | Sent as `reasoning_effort` on Chat Completions, `reasoning.effort` on Responses, and mapped to `thinking` on Messages. **Default** sends nothing and leaves it to the provider; **Disabled** asks the model not to reason. Strict endpoints reject the parameter with a 400. |
 | API | Temperature | `1.0` | `0`–`2`. Lower is more deterministic. Messages accepts `0`–`1` only, and drops the field when thinking is on. |
 | API | Top P | `0.8` | Leave empty to omit from the request. Messages drops it when thinking is on. |
@@ -95,8 +95,8 @@ Open **Settings → Marketplace → Downloaded → AI Title → Settings**.
 
 A fresh install starts here: SiYuan **Settings → AI → Providers** already holds the protocol, address, key and headers, so the plugin uses that configuration instead of asking you to copy it.
 
-- The plugin only remembers the selected provider and model name; protocol, address, key and headers are read from SiYuan before every request, so edits made there apply immediately.
-- **Pick the provider and model once per device.** SiYuan does not sync its own AI configuration, so a provider synced from another device does not exist here.
+- The plugin remembers only the protocol, the selected provider and the model name; the address, key and headers are read from SiYuan before every request, so edits made there apply immediately.
+- **The protocol, the provider and the model name are stored per device and never synced.** SiYuan does not sync its own AI configuration, so a protocol or provider id synced from another device has nothing to point at here.
 - The provider's own headers are used as well, and `{{vars.NAME}}` / `{{secrets.NAME}}` inside them follow the same rules as the plugin's custom headers.
 - Temperature, thinking effort, max output tokens and the rest stay in this plugin.
 - While this mode is active, **Base URL**, **API Key**, **Custom headers** and **Import from SiYuan** are hidden because SiYuan owns those values. To freeze one configuration as the plugin's own copy, switch **Protocol** to one of the three concrete protocols and use **Import from SiYuan** once.
@@ -175,7 +175,7 @@ Four entry points, all doing the same thing:
 - **`reasoning_content` is read as a fallback** when `content` comes back empty, since some models put the entire answer there.
 - **The publish service is not supported.** Publish visitors carry a read-only role, and the kernel endpoint the plugin uses requires an administrator role. `disabledInPublish` is set accordingly.
 - **Encrypting the API key depends on SiYuan's data repo key.** Without one it is stored in plain text, the settings panel says so, and initializing the key switches it to encrypted storage automatically.
-- **Using a SiYuan provider stores neither its address nor its key.** The plugin remembers the provider and model name only and reads the rest per request; those two are picked once per device, so deleting that provider in SiYuan — or moving to another device — asks you to pick one again.
+- **Using a SiYuan provider stores neither its address nor its key.** The plugin remembers the protocol, the provider and the model name and reads the rest per request; all three are stored per device, so deleting that provider in SiYuan — or moving to another device — asks you to pick one again.
 
 ## Troubleshooting
 

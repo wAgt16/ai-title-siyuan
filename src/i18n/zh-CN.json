@@ -10,7 +10,7 @@
   "protocolResponses": "Responses API",
   "protocolAnthropicMessages": "Anthropic Messages API",
   "protocolSiyuanProvider": "使用思源设置中供应商",
-  "protocolDesc": "按供应商实际提供的接口选择，导入思源配置时会跟着供应商的协议走",
+  "protocolDesc": "按供应商实际提供的接口选择，导入思源配置时会跟着供应商的协议走。这一项每台设备各存一份，不参与数据同步",
 
   "provider": "供应商",
   "providerDesc": "协议、地址、密钥与请求头都取自思源里选中的这条供应商；供应商与模型名每台设备各选一次。列表为空时先去思源设置里添加",
