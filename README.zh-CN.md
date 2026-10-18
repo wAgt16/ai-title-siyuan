@@ -18,7 +18,7 @@
 
 - **批量生成。** 在文档树中选中多篇笔记，一次完成。笔记会自动切分批次，批次之间并发执行。
 - **写回前先确认。** 每个标题都可编辑：取消不想要的，改动任意一条，或单独重新生成一行。
-- **风格自己定，契约不放手。** 系统提示词和用户提示词固定不可改——它们承载插件解析返回值所依赖的 JSON 契约。额外要求写进 `{{system}}`、`{{user}}` 追加位；`{{content}}`、`{{language}}`、`{{style}}` 每次请求时填充。
+- **风格自己定，返回值格式不放手。** 系统提示词与用户提示词固定不可修改：插件依赖它们解析模型回复。额外要求写进 `{{system}}`、`{{user}}` 追加位；`{{content}}`、`{{language}}`、`{{style}}` 每次请求时填充。
 - **四种协议。** Chat Completions、Responses API、Anthropic Messages 与 Gemini Interactions。可对接任意兼容服务，也可直接导入思源里已配置好的供应商——协议跟着一起导入。
 - **直接使用思源里配好的供应商。** 新装的默认选项：协议、地址、密钥与请求头都用思源里那一份，插件只记下协议、供应商与模型名（每台设备各存一份，不参与数据同步），思源那边改了就跟着变；**跟随编辑器默认** 与 **跟随智能体默认** 则由思源决定模型名，两者各自独立。
 - **可调思考强度。** 从「禁用」一直到最高档，按协议换算成 `reasoning_effort`、`reasoning.effort` 或 Anthropic 的 `thinking`，也可以完全不发送、交由供应商决定。
@@ -67,8 +67,8 @@ npm run build
 | 接口 | 思考强度 | 默认 | Chat Completions 以 `reasoning_effort` 发送，Responses 以 `reasoning.effort` 发送，Messages 换算成 `thinking`，Interactions 换算成 `generation_config.thinking_level`。**默认**不发送该字段、交给供应商决定；**禁用**明确要求模型不推理。严格的接口会直接返回 400 拒绝这个参数。 |
 | 接口 | 温度 | `1.0` | 取值 `0`–`2`，越低越稳定。Messages 只接受 `0`–`1`，且开启思考时不发送。 |
 | 接口 | Top P | `0.8` | 留空则不发送该参数。Messages 开启思考时不发送。 |
-| 接口 | Top K | *空* | 留空则不发送。OpenAI 官方接口对未识别参数直接返回 400，Responses 协议没有这个字段，仅在确认供应商支持时才填写；Messages 接受整数。 |
-| 接口 | 最大输出 token | `512` | 以 `max_completion_tokens` 发送；若供应商不认这个字段名，回退为 `max_tokens`。Responses 以 `max_output_tokens` 发送；Messages 以 `max_tokens` 发送，思考预算也从这里扣。 |
+| 接口 | Top K | *空* | 留空则不发送。OpenAI 官方接口对未识别参数直接返回 400，Responses 与 Gemini Interactions 没有这个字段，仅在确认供应商支持时才填写；Messages 接受整数。 |
+| 接口 | 最大输出 token | `512` | 以 `max_completion_tokens` 发送；若供应商不认这个字段名，回退为 `max_tokens`。Responses 以 `max_output_tokens` 发送，Interactions 以 `generation_config.max_output_tokens` 发送；Messages 以 `max_tokens` 发送，思考预算也从这里扣。 |
 | 接口 | 自定义请求头 | *空* | 额外请求头的 JSON 对象。取值里可引用思源的变量与密钥，见下文。协议为 **使用思源设置中供应商** 时这一项由思源接管，本页不显示。 |
 | 行为 | 超时 | `10000` ms | 针对单次请求。批次是并发的，所以这不是共享预算。 |
 | 行为 | 超时重试 | `1` | 仅在限流、服务端错误、超时和网络故障时重试。 |
