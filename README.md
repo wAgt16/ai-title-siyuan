@@ -17,19 +17,16 @@ This plugin does the naming pass for you. It reads each note's content, asks a m
 ## Features
 
 - **Generate in bulk.** Select many notes in the document tree and title them in one action. Notes are split into batches and the batches run concurrently.
-- **Review before writing.** Every title stays editable. Untick what you don't want, edit any field, or regenerate a single row.
-- **Your style, not the reply format.** The system and user prompts are fixed; the plugin relies on them to parse the model's reply. Put your own requirements in the `{{system}}` and `{{user}}` append slots; `{{content}}`, `{{language}}` and `{{style}}` are filled in per request.
+- **Review before writing.** Every title stays editable: untick what you don't want, edit any row, or regenerate a single row.
 - **Four protocols.** Chat Completions, the Responses API, Anthropic Messages and Gemini Interactions. Point it at any compatible endpoint, or import a provider you already configured in SiYuan — the protocol comes along with it.
-- **Use a provider configured in SiYuan directly.** What a fresh install starts on: the protocol, address, key and headers all come from SiYuan, and the plugin remembers only the protocol, the provider and the model name (each stored per device, never synced). Edits made in SiYuan apply immediately, and **Follow the editor default** / **Follow the agent default** hand the model name to SiYuan as well; the two options are independent.
-- **Set the thinking effort.** Pick a level from disabled up to maximum — it travels as `reasoning_effort`, `reasoning.effort` or Anthropic `thinking` depending on the protocol — or send nothing and leave it to the provider.
-- **Custom request headers.** Fill in a JSON object of extra headers whose values may reference SiYuan variables (`{{vars.NAME}}`) and secrets (`{{secrets.NAME}}`), resolved before every request — which is what providers such as opencode need. Importing a provider from SiYuan brings its headers along.
+- **Use a provider configured in SiYuan directly.** What a fresh install starts on: the protocol, address, key and headers all come from that entry in SiYuan.
+- **Set the thinking effort.** Pick a level from disabled up to maximum, or send nothing and leave it to the provider.
 - **The API key is encrypted at rest.** It is sealed with SiYuan's own data repo key. Without one it is stored in plain text and the settings panel says so.
-- **Built for debugging.** Debug mode dumps the full request and response to the console.
 
 ## Requirements
 
 - SiYuan 3.8.3 or later.
-- An endpoint speaking Chat Completions, the Responses API, Anthropic Messages or Gemini Interactions, along with its base URL and API key — **or** an AI provider already configured in SiYuan, which is what a fresh install uses.
+- An endpoint speaking Chat Completions, the Responses API, Anthropic Messages or Gemini Interactions, along with its base URL and API key — **or** an AI provider already configured in SiYuan.
 
 ## Install
 
@@ -52,59 +49,15 @@ That writes `package.zip` in the repository root.
 Open **Settings → Marketplace → Downloaded → AI Title → Settings**.
 
 1. **Protocol** — defaults to **Use a SiYuan provider**: the protocol, base URL, API key and headers all come from the provider selected in SiYuan. Switch the dropdown to one of the four concrete protocols to fill those values in yourself. This one is stored per device and never synced.
-2. **Provider** — shown only while **Use a SiYuan provider** is selected. Pick one of the providers already configured in SiYuan; an empty list means there are none yet. **Follow the editor default** uses the model SiYuan's editor AI has by default, **Follow the agent default** uses the agent's; neither falls back to the other, and the model name cannot be edited here. This choice and the model name are stored per device.
+2. **Provider** — shown only while **Use a SiYuan provider** is selected. Pick one of the providers already configured in SiYuan; an empty list means there are none yet.
 3. **Base URL** — with a custom protocol, include the version segment your provider documents. For Messages, stop at `/v1` — the plugin appends `/messages` itself. For Interactions, stop at `/v1beta`; the plugin appends `/interactions`.
-4. **API Key** — leave empty if your endpoint needs no key. It is encrypted with SiYuan's data repo key before being written to disk; see below.
+4. **API Key** — leave empty if your endpoint needs no key. It is encrypted with SiYuan's data repo key before saving; see below.
 5. **Model** — type a name, click **Fetch models** to pick from the provider's list, or use **Import from SiYuan** to copy a provider you already configured there. With a SiYuan provider selected, clicking the field lists the models that provider registers.
 6. Click **Test connection**. Any reply means the configuration works.
 
-### Settings reference
-
-| Group | Setting | Default | Notes |
-| --- | --- | --- | --- |
-| API | Protocol | Use a SiYuan provider | Protocol, base URL, API key and headers come from the provider selected in SiYuan. Switch to one of the four concrete protocols to fill the fields below in yourself. Stored per device, never synced. |
-| API | Provider | *empty* | Shown only while the protocol is **Use a SiYuan provider**. Pick one of the providers configured in SiYuan; changing it also switches the model to the one that provider has enabled. **Follow the editor default** and **Follow the agent default** use the default model of SiYuan's editor AI and of the agent respectively, without falling back to each other, and turn the model field read-only. The provider and model are stored per device. |
-| API | Thinking effort | Default | Sent as `reasoning_effort` on Chat Completions, `reasoning.effort` on Responses, mapped to `thinking` on Messages and to `generation_config.thinking_level` on Interactions. **Default** sends nothing and leaves it to the provider; **Disabled** asks the model not to reason. Strict endpoints reject the parameter with a 400. |
-| API | Temperature | `1.0` | `0`–`2`. Lower is more deterministic. Messages accepts `0`–`1` only, and drops the field when thinking is on. |
-| API | Top P | `0.8` | Leave empty to omit from the request. Messages drops it when thinking is on. |
-| API | Top K | *empty* | Omitted when empty. The official OpenAI API rejects unknown body parameters with a 400, and Responses and Gemini Interactions have no such field, so only fill this in for providers that accept it. Messages takes an integer. |
-| API | Max output tokens | `512` | Sent as `max_completion_tokens`, falling back to `max_tokens` if the provider rejects that name. Responses sends `max_output_tokens`, Interactions sends `generation_config.max_output_tokens`; Messages sends `max_tokens` and its thinking budget comes out of it. |
-| API | Custom headers | *empty* | A JSON object of extra request headers. Values may reference SiYuan variables and secrets; see below. Taken over by SiYuan and hidden on this page while the protocol is **Use a SiYuan provider**. |
-| Behaviour | Timeout | `10000` ms | Per request. Batches are concurrent, so this is not a shared budget. |
-| Behaviour | Retries | `1` | Only for rate limits, server errors, timeouts and network failures. |
-| Behaviour | Note body limit | `1000` characters | Counts the body only: the note id and its outline are never cut. |
-| Behaviour | Over-long notes | Keep the beginning | Keep the beginning, the end, both ends (split by the share below), or always send the whole body. |
-| Behaviour | Beginning share | `0.5` | Shown for **Keep both ends** only: the fraction of the budget the beginning gets. |
-| Behaviour | Links, images and custom blocks | Short placeholder | Replace them with tokens such as `[image]`, `[file(.pdf)]` and `[button]`, drop them, or keep them as they are. |
-| Behaviour | Include the current title | On | Sends the title the note already has together with the body and the outline. |
-| Behaviour | Send the note outline | Only when the body is truncated | Never, when the body was cut short, or always. The outline itself is never truncated. |
-| Behaviour | Notes per request | `3` | Selecting more splits the work into batches. |
-| Behaviour | Max concurrent requests | `3` | Lower it if your provider rate limits. |
-| Behaviour | Apply titles automatically | Disabled | See below. |
-| Behaviour | Title language | Follows the SiYuan interface language | Filled into `{{language}}`. |
-| Behaviour | Title style | `简洁准确，拒绝套话` | Filled into `{{style}}`. |
-| Behaviour | Ignore injected instructions | On | Adds a line to the system prompt telling the model to ignore any text in the notes that tries to interfere with, decide or influence the titles. |
-| Behaviour | Extra system instructions | *empty* | Appended to the fixed system prompt through `{{system}}`. |
-| Behaviour | Extra user instructions | *empty* | Appended to the fixed user prompt through `{{user}}`. |
-| Interface | Toolbar button | On | |
-| Interface | Breadcrumb button | Off | |
-| Interface | Document tree menu | On | |
-| Interface | Debug mode | Off | Logs the complete request and response bodies, and every pipeline decision. |
-
-### Using a provider from SiYuan
-
-A fresh install starts here: SiYuan **Settings → AI → Providers** already holds the protocol, address, key and headers, so the plugin uses that configuration instead of asking you to copy it.
-
-- The plugin remembers only the protocol, the selected provider and the model name; the address, key and headers are read from SiYuan before every request, so edits made there apply immediately.
-- **The protocol, the provider and the model name are stored per device and never synced.** SiYuan does not sync its own AI configuration, so a protocol or provider id synced from another device has nothing to point at here.
-- The provider's own headers are used as well, and `{{vars.NAME}}` / `{{secrets.NAME}}` inside them follow the same rules as the plugin's custom headers.
-- **Follow the editor default** and **Follow the agent default** store neither the provider nor the model: every request takes the default model of SiYuan's editor AI or of the agent respectively. When that one is not set, the option reports it instead of using the other default. The model field is read-only, and it follows whatever SiYuan selects.
-- Temperature, thinking effort, max output tokens and the rest stay in this plugin.
-- While this mode is active, **Base URL**, **API Key**, **Custom headers** and **Import from SiYuan** are hidden because SiYuan owns those values. To freeze one configuration as the plugin's own copy, switch **Protocol** to one of the four concrete protocols and use **Import from SiYuan** once.
-
 ### Custom headers
 
-Some providers insist on headers of their own. opencode, for one, wants a stable conversation id in `x-opencode-session` plus a client-specific `User-Agent`. Fill them in as a JSON object:
+Some providers insist on headers of their own. opencode, for one, wants a stable conversation id in `x-opencode-session` plus a client-specific `User-Agent`. Fill them in under **Custom headers** as a JSON object:
 
 ```json
 {
@@ -133,32 +86,13 @@ Some providers insist on headers of their own. opencode, for one, wants a stable
 
 ### Applying titles
 
-| Mode | Single note | Several notes |
-| --- | --- | --- |
+| Mode                   | Single note         | Several notes       |
+| ---------------------- | ------------------- | ------------------- |
 | **Disabled** (default) | Confirmation dialog | Confirmation dialog |
-| **Single note only** | Written directly | Confirmation dialog |
-| **Always** | Written directly | Written directly |
+| **Single note only**   | Written directly    | Confirmation dialog |
+| **Always**             | Written directly    | Written directly    |
 
 Bulk-renaming documents is destructive and SiYuan's rename has no undo stack. **A failed batch still opens the dialog first**: some notes came back without a title, and that is worth seeing before applying the rest.
-
-### Thinking effort
-
-The **Thinking effort** setting travels differently per protocol: as `reasoning_effort` on Chat Completions, as `reasoning.effort` on Responses, as `thinking` on Anthropic Messages and as `generation_config.thinking_level` on Gemini Interactions. **Default** sends nothing and lets the provider decide, **Disabled** asks for no reasoning at all, and `low` through `max` ask for progressively more.
-
-Interactions only knows four levels — `minimal`, `low`, `medium` and `high`: **Disabled** lands on `minimal` (the closest thing to off this API has), and `high` and above collapse into `high`.
-
-On Messages the levels map onto Anthropic's own thinking controls. Models up to Claude 4.6 get `thinking: {type: "enabled", budget_tokens: N}`, with the budget capped at half the output limit; newer models get `thinking: {type: "adaptive"}` plus `output_config.effort`, because the two generations do not accept each other's spelling. The smallest budget the API takes is 1024 tokens and it comes out of **Max output tokens**, so keep that at 2048 or more when you pick a level — below that the plugin stops with an explanation rather than sending a request the API would reject. Thinking and the sampling parameters are mutually exclusive, so **Temperature**, **Top P** and **Top K** are left out while thinking is on, and the current-generation Claude models reject them even when thinking is off.
-
-On Chat Completions the field is part of the protocol rather than invented by a vendor: `reasoning_effort` is an OpenAI Chat Completions parameter, and DeepSeek, Ollama, Gemini 2.5, GLM, qwen3.8-max and OpenRouter all read `none` as "do not reason". The level names follow the spelling SiYuan's own AI settings use.
-
-It is not universal, and two cases cannot be turned off at all:
-
-- Models that always reason have no off setting (Gemini 2.5 Pro, Gemini 3, thinking-only Qwen models).
-- Strict endpoints reject unknown parameters with a 400 — OpenAI's own API does, and GPT-6 Astra refuses even `none`.
-
-You are told when it did not work. When the effort is **Disabled** and the model reasoned anyway — the response carried `reasoning_content`, or `usage` reported reasoning tokens — the run ends with a "disable thinking had no effect" notice.
-
-That notice matters because this failure is otherwise **silent**: the request succeeds, and you keep paying tokens and latency for a reasoning trace you never asked for.
 
 ## Usage
 
@@ -167,40 +101,24 @@ Four entry points, all doing the same thing:
 - The **toolbar button** names the note you are currently editing.
 - The **breadcrumb button** in the editor does the same.
 - **Right-click notes in the document tree** to name one or many. This is the bulk path.
-- The **command palette** has *Generate title with AI*.
-
-## Notes and limits
-
-- **Content is read with `/api/export/exportMdContent`**, not from the editor buffer. Exporting produces clean Markdown without the block attribute lines that the kramdown API appends.
-- **Plugin custom blocks go through the same setting.** They reach the export as a `;;;plugin-name/block-type` fence, and the short placeholder keeps the block type alone — `[button]` for a button block. Both the placeholder and the drop mode keep the block content, a whole JSON payload for a button, out of the request.
-- **A note with no content is skipped** rather than sent, so the model cannot invent a title for an empty document.
-- **A note the model does not return a title for is reported as a failure.** The plugin never guesses a mapping or falls back to a positional match, because that would write a title onto an unrelated note.
-- **`reasoning_content` is read as a fallback** when `content` comes back empty, since some models put the entire answer there.
-- **The publish service is not supported.** Publish visitors carry a read-only role, and the kernel endpoint the plugin uses requires an administrator role. `disabledInPublish` is set accordingly.
-- **Encrypting the API key depends on SiYuan's data repo key.** Without one it is stored in plain text, the settings panel says so, and initializing the key switches it to encrypted storage automatically.
-- **Using a SiYuan provider stores neither its address nor its key.** The plugin remembers the protocol, the provider and the model name and reads the rest per request; all three are stored per device, so deleting that provider in SiYuan — or moving to another device — asks you to pick one again.
-- **Gemini Interactions turns server-side retention off.** That API stores requests and responses by default so `previous_interaction_id` can continue a conversation; every plugin request is a standalone call, so `store: false` is always sent and your note content is not kept server-side.
+- The **command palette** has _Generate title with AI_.
 
 ## Troubleshooting
 
-Enable **Debug mode** in the settings and open the console. It prints the full request body, the raw response and each pipeline decision.
+Enable **Debug mode** in the settings and open the console: it shows the full request body, the raw response and each pipeline decision.
 
-| Symptom | Likely cause |
-| --- | --- |
-| `HTTP 404` | Wrong base URL. Check the version segment against your provider's documentation. |
-| `HTTP 404` on Messages | The base URL must be the provider's *Messages* base — `https://api.anthropic.com/v1`, or `https://api.deepseek.com/anthropic` for DeepSeek. The plugin appends `/v1` and `/messages` only when they are missing, so an OpenAI-style base such as `https://api.deepseek.com` lands on `/v1/messages`, which does not exist there. `HTTP 404` alone (no body) is exactly this case. |
-| `HTTP 404` on Interactions | The base URL must include Gemini's version segment, e.g. `https://generativelanguage.googleapis.com/v1beta`. The plugin appends `/v1beta` and `/interactions` only when they are missing, so a gateway with an extra path segment has to be spelled out in full. |
-| `HTTP 401` | Wrong or missing API key. Messages wants `x-api-key`; the plugin sends it for every host except OpenRouter. |
-| `max_completion_tokens` in an error (Chat Completions) | Your provider only accepts `max_tokens`. The plugin retries with the right name automatically; seeing this twice means the retry also failed. |
-| `HTTP 400` mentioning an unknown parameter | Your provider rejects `reasoning_effort`. Set **Thinking effort** to **Default**. |
-| `SiYuan provider "…" was not found` | That provider was deleted from SiYuan settings, or the current role cannot read SiYuan's AI configuration. Pick a provider again in the plugin settings. |
-| `SiYuan has no default model for the editor AI` / `… for the agent` | The corresponding **Follow …** option is selected, but that spot in SiYuan has no default model yet. Set one under **Settings → AI**, or pick a concrete provider in the plugin. |
-| `SiYuan provider "…" uses the protocol "…", which this plugin does not implement` | The provider speaks a protocol the plugin does not implement (only Chat Completions, the Responses API, Anthropic Messages and Gemini Interactions are). Switch to a custom protocol and fill the address in yourself, or use another provider. |
-| `SiYuan provider "…" has no base URL` | That provider has no base URL in SiYuan. Fill it in under **Settings → AI → Providers**. |
-| A `{{vars.…}}` or `{{secrets.…}}` sent as-is in a custom header | The name does not exist, or the secret's allowed-hosts list does not contain the base URL's host. Secrets are substituted only on their allowed hosts. |
-| `Anthropic thinking needs an output token limit of at least 2048` | A thinking level is selected while **Max output tokens** is too small. Raise it, or set **Thinking effort** to **Default**. |
-| The model returns nothing | Reasoning may have consumed the whole output budget. Raise **Max output tokens** or set **Thinking effort** to **Disabled**. |
-| Titles not in the language you want | Change **Title language**. It defaults to your SiYuan interface language. |
+| Symptom                                                           | Likely cause                                                                                                                                                                                                                                                                                                                                              |
+| ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `HTTP 404`                                                        | Wrong base URL. Messages wants the provider's Messages base (`https://api.anthropic.com/v1`; DeepSeek uses `https://api.deepseek.com/anthropic`), Interactions wants Gemini's version segment (e.g. `https://generativelanguage.googleapis.com/v1beta`). The plugin only appends `/v1`, `/messages`, `/v1beta` and `/interactions` when they are missing. |
+| `HTTP 401`                                                        | Wrong or missing API key. Messages wants `x-api-key`; the plugin sends it for every host except OpenRouter.                                                                                                                                                                                                                                               |
+| `HTTP 400` mentioning an unknown parameter                        | Your provider rejects `reasoning_effort`. Set **Thinking effort** to **Default**.                                                                                                                                                                                                                                                                         |
+| `max_completion_tokens` in an error                               | Your provider only accepts `max_tokens`. The plugin retries under the right name; seeing it twice means the retry failed too.                                                                                                                                                                                                                             |
+| A `SiYuan provider "…"` error                                     | The provider was deleted from SiYuan, the current role cannot read SiYuan's AI configuration, it has no base URL, or its protocol is not implemented. Fix it under **Settings → AI**, or pick another provider in the plugin.                                                                                                                             |
+| `SiYuan has no default model …`                                   | A **Follow … default** option is selected but SiYuan has no default model in that spot. Set one under **Settings → AI**.                                                                                                                                                                                                                                  |
+| A `{{vars.…}}` or `{{secrets.…}}` sent as-is in a request header  | The name does not exist, or the secret's allowed-hosts list does not contain the base URL's host.                                                                                                                                                                                                                                                         |
+| `Anthropic thinking needs an output token limit of at least 2048` | A thinking level is on while **Max output tokens** is below 2048. Raise it, or set **Thinking effort** to **Default**.                                                                                                                                                                                                                                    |
+| The model returns nothing                                         | Reasoning may have consumed the whole output budget. Raise **Max output tokens** or set **Thinking effort** to **Disabled**.                                                                                                                                                                                                                              |
+| Titles not in the language you want                               | Change **Title language**. It defaults to your SiYuan interface language.                                                                                                                                                                                                                                                                                 |
 
 ## Development
 
@@ -213,10 +131,6 @@ npm run icon       # regenerate assets/icon.png and assets/preview.png
 npm run preview    # re-shoot assets/preview.png from assets/preview.html
 ```
 
-`npm run icon` and `npm run preview` shoot the preview with Playwright, so run `npm install` followed by `npx playwright install chromium` once before the first preview build. Every other script works without it.
-
-The unit tests cover what runs outside SiYuan: protocol request bodies and response parsing, body truncation, prompt rendering, settings merging and the i18n tables. Everything that needs the kernel — exporting a note, renaming a document, the settings panel — is verified by loading the plugin in SiYuan. `.github/workflows/ci.yml` runs typecheck, tests and the packaging step on every push and pull request.
-
 ## License
 
-MIT — see [LICENSE](LICENSE).
+[MIT](./LICENSE)
