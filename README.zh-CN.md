@@ -120,6 +120,10 @@ npm run build
 | 模型没有返回任何内容                                              | 推理可能耗尽了输出预算。调大 **最大输出 token**，或把 **思考强度** 设为 **禁用**。                                                                                                                                                                                                                   |
 | 标题不是我想要的语言                                              | 修改 **标题语言**，它默认跟随思源界面语言。                                                                                                                                                                                                                                                          |
 
+## 集市趋势图表
+
+![集市趋势图表](https://siyuan-bazaar-stats-graph.sr1.cc.cd/api/chart/wmy2981/ai-title-siyuan?metrics=downloads,rating,ratings&range=all&area=true&lang=zh)
+
 ## 开发
 
 ```bash

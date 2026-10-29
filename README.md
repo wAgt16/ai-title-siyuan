@@ -120,6 +120,10 @@ Enable **Debug mode** in the settings and open the console: it shows the full re
 | The model returns nothing                                         | Reasoning may have consumed the whole output budget. Raise **Max output tokens** or set **Thinking effort** to **Disabled**.                                                                                                                                                                                                                              |
 | Titles not in the language you want                               | Change **Title language**. It defaults to your SiYuan interface language.                                                                                                                                                                                                                                                                                 |
 
+## Bazaar Stats Graph
+
+![Bazaar stats graph](https://siyuan-bazaar-stats-graph.sr1.cc.cd/api/chart/wmy2981/ai-title-siyuan?metrics=downloads,rating,ratings&range=all&area=true&lang=en)
+
 ## Development
 
 ```bash
