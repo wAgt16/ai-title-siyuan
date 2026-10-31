@@ -2,7 +2,7 @@
   "name": "ai-title-siyuan",
   "author": "wmy2981",
   "url": "https://github.com/wmy2981/ai-title-siyuan",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "minAppVersion": "3.8.3",
   "backends": [
     "all"
