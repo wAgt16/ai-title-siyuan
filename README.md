@@ -12,7 +12,7 @@ A SiYuan plugin that names your notes for you. Select one or more notes, and it 
 
 SiYuan names a new document `Untitled`. Renaming later is a manual chore, and doing it for a folder full of notes is tedious enough that most people never get around to it.
 
-This plugin does the naming pass for you. It reads each note's content, asks a model for a title, and writes it back through the kernel's own rename path so the document path, its child documents' paths and the search index all stay consistent.
+This plugin does the naming pass for you. It reads each note's content, asks a model for a title, and writes it back through the kernel's own title APIs so the document path, its child documents' paths and the search index all stay consistent.
 
 ## Features
 
@@ -93,6 +93,8 @@ Some providers insist on headers of their own. opencode, for one, wants a stable
 | **Always**             | Written directly    | Written directly    |
 
 Bulk-renaming documents is destructive and SiYuan's rename has no undo stack. **A failed batch still opens the dialog first**: some notes came back without a title, and that is worth seeing before applying the rest.
+
+Titles may contain inline Markdown. On SiYuan 3.8.10 and later a title with inline Markdown is written as a rich-text title source, so bold, italic, code and links render as such; a plain-title document is upgraded to the rich format when that happens (older SiYuan clients may not read that document), and stays plain — a plain rename — when the title has no Markdown. Older SiYuan versions cannot store rich titles, so the markers are stripped before renaming there. When the generated text matches the current title text the title is left untouched; otherwise the whole title is replaced with the generated one.
 
 ## Usage
 

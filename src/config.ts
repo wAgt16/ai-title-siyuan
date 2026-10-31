@@ -310,7 +310,7 @@ Example:
 Rules:
 - Use the exact note id string as each key, verbatim.
 - Return exactly one entry per note provided.
-- The title must be plain text, no markdown, no surrounding quotes.
+- The title must be a single line, no surrounding quotes.
 - Never invent, translate, or alter a note id.
 - Output the raw JSON object only. No markdown fences, no explanation, no text before or after.
 
