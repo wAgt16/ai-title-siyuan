@@ -146,6 +146,7 @@
   "commandGenerate": "Generate title with AI",
 
   "progressMessage": "Generating titles… ({done}/{total})",
+  "alreadyGenerating": "A generation is already running. Wait for it to finish",
   "noProvider": "Configure the API and model in the plugin settings first",
   "noActiveNote": "No note is open. Select notes in the document tree and use the right-click menu",
   "noDocsSelected": "No document was selected",

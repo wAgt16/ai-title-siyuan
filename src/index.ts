@@ -31,6 +31,8 @@ import "./index.scss";
 const TOP_BAR_ID = "ai-title-topbar";
 const BREADCRUMB_ID = "ai-title-breadcrumb";
 const PROGRESS_ID = "ai-title-progress";
+/** 重复点击的回执共用这个 id：连点几次也只留一条，不刷屏。 */
+const BUSY_ID = "ai-title-busy";
 
 /** 文档树右键菜单事件的 detail，SDK 未导出该事件的具名类型。 */
 interface DocTreeMenuDetail {
@@ -44,6 +46,13 @@ export default class AiTitlePlugin extends Plugin {
     private t: T = makeT({});
     private topBarElement?: HTMLElement;
     private breadcrumbRegistered = false;
+    /**
+     * 生成流程是否正在进行（#40）。
+     *
+     * 四个入口共用这一道闸：一次生成没跑完就再点一次，不应该再发一轮请求 ——
+     * 那既重复花钱，又会在最后弹出第二个确认窗口。
+     */
+    private generating = false;
 
     async onload(): Promise<void> {
         this.t = makeT(this.i18n);
@@ -318,6 +327,12 @@ export default class AiTitlePlugin extends Plugin {
     /** 四个入口共用的执行路径：取正文 → 并发请求 → 弹窗或直接应用。 */
     private async runGeneration(ids: string[], source: string): Promise<void> {
         const {api, behavior} = this.settings;
+        // 闸在第一个 await 之前落下：慢的是网络，重复点击往往正发生在这一段
+        if (this.generating) {
+            debug(`Ignored a repeated generation request from "${source}"`);
+            showMessage(this.t("alreadyGenerating"), 3000, "info", BUSY_ID);
+            return;
+        }
         debug(`Generation requested from "${source}" for ${ids.length} note(s): ${ids.join(", ")}`);
         if (!hasProviderConfig(api)) {
             showMessage(this.t("noProvider"), 6000, "error");
@@ -327,6 +342,7 @@ export default class AiTitlePlugin extends Plugin {
         // 是两件事
         debugJson("Settings in effect", this.redactedSettings(this.settings));
 
+        this.generating = true;
         try {
             const outcome = await generateTitles({
                 ids,
@@ -347,6 +363,9 @@ export default class AiTitlePlugin extends Plugin {
             const message = error instanceof Error ? error.message : String(error);
             debug(`Generation aborted: ${message}`);
             showMessage(message, 12000, "error");
+        } finally {
+            // 出错也要放开，否则一次异常会让插件此后一直「正在生成」
+            this.generating = false;
         }
     }
 

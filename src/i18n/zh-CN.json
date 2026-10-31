@@ -146,6 +146,7 @@
   "commandGenerate": "用 AI 生成标题",
 
   "progressMessage": "正在生成标题…（{done}/{total}）",
+  "alreadyGenerating": "正在生成标题，请等待这一次完成",
   "noProvider": "请先在插件设置中配置接口与模型",
   "noActiveNote": "当前没有打开的笔记，请在文档树中选中笔记后使用右键菜单",
   "noDocsSelected": "没有选中任何文档",
